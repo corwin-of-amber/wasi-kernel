@@ -7,6 +7,12 @@ import { Stdin, TransformStreamDuplex } from './streams';
 
 class Process extends EventEmitter {
 
+    worker : Worker
+    stdin : TransformStreamDuplex
+    stdout : TransformStreamDuplex
+
+    stdin_raw : Stdin
+
     constructor(js, wasm) {
         super();
         
@@ -34,7 +40,12 @@ class Process extends EventEmitter {
 
 class ExecCore extends EventEmitter {
 
-    constructor(opts={}) {
+    stdin: Stdin
+    wasmFs: WasmFs
+    wasi: WASI
+    wasm: WebAssembly.WebAssemblyInstantiatedSource
+
+    constructor(opts: ExecCoreOptions = {}) {
         super();
 
         this.emit('out');
@@ -65,8 +76,7 @@ class ExecCore extends EventEmitter {
         }
     }
 
-
-    async start(wasmUri) {
+    async start(wasmUri: string) {
         // Fetch Wasm binary and instantiate WebAssembly instance
         const response = await fetch(wasmUri);
         const bytes = await response.arrayBuffer();
@@ -79,17 +89,22 @@ class ExecCore extends EventEmitter {
         this.wasi.start(this.wasm.instance);
     }
     
-    makeTty(fd) {
+    makeTty(fd: number) {
         // Make isatty(fd) return `true`
         this.wasi.FD_MAP.get(fd).filetype = 2;
         this.wasi.FD_MAP.get(fd).rights.base &= ~BigInt(0x24);
     }
 
-    emitWrite(fd, buffer) {
+    emitWrite(fd: number, buffer: Buffer | Uint8Array) {
         this.emit('stream:out', {fd: fd, data: buffer});
         return buffer.length;
     }
 }
+
+type ExecCoreOptions = {
+    tty? : boolean | number | [number]
+};
+
 
 
 export {Process, ExecCore}

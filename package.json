@@ -12,9 +12,12 @@
     "fibers": "^4.0.2"
   },
   "devDependencies": {
+    "rollup": "^1.25.2",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-globals": "^1.4.0",
-    "rollup-plugin-node-resolve": "^5.2.0"
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-typescript2": "^0.24.3",
+    "typescript": "^3.6.4"
   }
 }

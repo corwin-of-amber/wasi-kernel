@@ -1,5 +1,7 @@
 import { ExecCore } from "./process";
 
+declare var self: DedicatedWorkerGlobalScope;
+
 
 
 const core = new ExecCore({tty: true});
