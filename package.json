@@ -1,0 +1,20 @@
+{
+  "name": "wasm",
+  "version": "0.1.0",
+  "description": "",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@wasmer/wasi": "^0.3.0",
+    "@wasmer/wasm-transformer": "^0.3.0",
+    "@wasmer/wasmfs": "^0.3.0",
+    "deasync": "^0.1.15",
+    "fibers": "^4.0.2"
+  },
+  "devDependencies": {
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-builtins": "^2.1.2",
+    "rollup-plugin-node-globals": "^1.4.0",
+    "rollup-plugin-node-resolve": "^5.2.0"
+  }
+}
