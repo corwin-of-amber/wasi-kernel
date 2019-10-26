@@ -1,6 +1,8 @@
-import {Process} from './process';
+import { WorkerProcess, BareProcess, ExecCore } from './process';
+
+if (typeof module !== 'undefined' && module.id === '.') {
+    new BareProcess('busy-wasi.wasm');
+}
 
 
-
-if (typeof window !== 'undefined')
-    Object.assign(window, {Process});
+export { WorkerProcess, ExecCore }

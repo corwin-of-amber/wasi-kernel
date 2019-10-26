@@ -19,19 +19,28 @@ let plugins = [
   typescript()
 ];
 
+const wasmerGlobals = {'@wasmer/wasi': 'WASI', '@wasmer/wasmfs': 'WasmFs'};
 
-const iife = x => ({ file: `dist/${x}`, format: 'iife', sourcemap: sourcemapOption });
+const out = (x, type) => ({ file: `dist/${x}`, format: type, sourcemap: sourcemapOption }),
+      iife = (fn, name) => Object.assign(out(fn, 'iife'), {name}),
+      cjs =  fn => Object.assign(out(fn, 'cjs'), {globals: wasmerGlobals});
 
 
 export default [
   {
     input: "src/kernel/index.ts",
-    output: [iife("kernel.iife.js")],
+    output: [iife("kernel.iife.js", "kernel")],
     plugins: plugins
   },
   {
+    input: "src/kernel/index.ts",
+    output: [cjs("kernel.cjs.js")],
+    plugins: plugins,
+    external: Object.keys(wasmerGlobals)
+  },
+  {
     input: "src/kernel/worker.ts",
-    output: [iife("worker.iife.js")],
+    output: [iife("worker.iife.js", "worker")],
     plugins: plugins
   }
 ];

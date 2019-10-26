@@ -5,36 +5,65 @@ import { Stdin, TransformStreamDuplex } from './streams';
 
 
 
-class Process extends EventEmitter {
+abstract class ProcessBase extends EventEmitter {
 
-    worker : Worker
     stdin : TransformStreamDuplex
     stdout : TransformStreamDuplex
 
     stdin_raw : Stdin
 
-    constructor(js, wasm) {
+    constructor() {
         super();
         
-        this.worker = new Worker(js);
+        if (typeof TextEncoderStream !== 'undefined') {
+            this.stdin = new TransformStreamDuplex(new TextEncoderStream());
+            this.stdin.on('data', bytes => this.stdin_raw.write(bytes));
+
+            this.stdout = new TransformStreamDuplex(new TextDecoderStream());
+            this.stdout.on('data', console.log);
+        }
+    }
+
+    abstract exec(wasm: string): void;
+}
+
+
+class WorkerProcess extends ProcessBase {
+
+    worker : Worker
+
+    constructor(wasm : string, workerJs : string) {
+        super();
+        
+        this.worker = new Worker(workerJs);
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin) this.stdin_raw = Stdin.from(ev.data.stdin);
             if (ev.data.fd) this.stdout.write(ev.data.data);
         });
 
-        this.stdin = new TransformStreamDuplex(new TextEncoderStream());
-        this.stdin.on('data', bytes => this.stdin_raw.write(bytes));
-
-        this.stdout = new TransformStreamDuplex(new TextDecoderStream());
-        this.stdout.on('data', console.log);
-
         if (wasm) this.exec(wasm);
     }
 
-    exec(wasm) {
+    exec(wasm: string) {
         this.worker.postMessage({exec: wasm});
     }
-    
+}
+
+
+class BareProcess extends ProcessBase {
+
+    core: ExecCore;
+
+    constructor(wasm: string) {
+        super();
+        this.exec(wasm);
+    }
+
+    exec(wasm: string) {
+        this.core = new ExecCore({tty: true});
+        this.core.on('stream:out', ev => console.log(ev));
+        this.core.start(wasm);
+    }
 }
 
 
@@ -78,8 +107,7 @@ class ExecCore extends EventEmitter {
 
     async start(wasmUri: string) {
         // Fetch Wasm binary and instantiate WebAssembly instance
-        const response = await fetch(wasmUri);
-        const bytes = await response.arrayBuffer();
+        const bytes = await this.fetch(wasmUri);
         
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: this.wasi.wasiImport
@@ -87,6 +115,17 @@ class ExecCore extends EventEmitter {
     
         // Start the WebAssembly WASI instance!
         this.wasi.start(this.wasm.instance);
+    }
+
+    async fetch(uri: string) {
+        if (typeof fetch !== 'undefined') {
+            const response = await fetch(uri);
+            return await response.arrayBuffer();
+        }        
+        else {
+            const fs = require('fs');
+            return fs.readFileSync(uri);
+        }
     }
     
     makeTty(fd: number) {
@@ -107,6 +146,6 @@ type ExecCoreOptions = {
 
 
 
-export {Process, ExecCore}
+export { WorkerProcess, BareProcess, ExecCore }
 
 
