@@ -1,7 +1,5 @@
 import { ExecCore } from "./process";
-
-declare var self: DedicatedWorkerGlobalScope;
-
+import { postMessage, onMessage } from './bindings/workers';
 
 
 const core = new ExecCore({tty: true});
@@ -11,6 +9,6 @@ postMessage({stdin: core.stdin});
 
 core.on('stream:out', ev => postMessage(ev));
 
-addEventListener('message', (ev) => {
+onMessage((ev) => {
     if (ev.data.exec) core.start(ev.data.exec);
 });

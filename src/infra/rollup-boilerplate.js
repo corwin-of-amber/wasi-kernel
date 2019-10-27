@@ -1,3 +1,5 @@
+import replace from 'rollup-plugin-replace';
+
 
 const sourcemapOption = process.env.PROD ? undefined : "inline";
 
@@ -22,4 +24,14 @@ function targets(list) {
 targets.selected = process.env.ONLY ? process.env.ONLY.split('+') : 'all';
 
 
-export { out, iife, esm, cjs, globals, targets }
+const defines = {
+    node: replace({
+        delimiters: ["", ""], values: { "ROLLUP_IS_NODE": "true"}
+    }),
+    browser: replace({
+        delimiters: ["", ""], values: { "ROLLUP_IS_NODE": "false"}
+    })
+};
+
+
+export { out, iife, esm, cjs, globals, targets, defines }

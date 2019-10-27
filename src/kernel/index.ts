@@ -1,8 +1,11 @@
 import { WorkerProcess, BareProcess, ExecCore } from './process';
 
 if (typeof module !== 'undefined' && module.id === '.') {
-    new BareProcess('busy-wasi.wasm');
+    new WorkerProcess('busy-wasi.wasm', './dist/worker.cjs.js').on('error', (err, wasm)=> {
+        console.error(`Failed to run '${wasm}';`);
+        console.error(err);        
+    });
 }
 
 
-export { WorkerProcess, ExecCore }
+export { WorkerProcess, BareProcess, ExecCore }

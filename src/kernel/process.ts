@@ -3,6 +3,7 @@ import WASI from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import { Stdin, TransformStreamDuplex } from './streams';
 
+import { Worker } from './bindings/workers';
 
 
 abstract class ProcessBase extends EventEmitter {
@@ -21,6 +22,10 @@ abstract class ProcessBase extends EventEmitter {
 
             this.stdout = new TransformStreamDuplex(new TextDecoderStream());
             this.stdout.on('data', console.log);
+        }
+        else if (typeof process !== 'undefined') {
+            process.stdin.on('data', buf => this.stdin_raw.write(buf));
+            this.stdout = <any>process.stdout;
         }
     }
 
@@ -61,8 +66,10 @@ class BareProcess extends ProcessBase {
 
     exec(wasm: string) {
         this.core = new ExecCore({tty: true});
-        this.core.on('stream:out', ev => console.log(ev));
-        this.core.start(wasm);
+        this.core.on('stream:out', ev => process.stdout.write(ev.data));
+        this.core.start(wasm).catch(err => {
+            this.emit('error', err, wasm);
+        });
     }
 }
 
@@ -76,9 +83,7 @@ class ExecCore extends EventEmitter {
 
     constructor(opts: ExecCoreOptions = {}) {
         super();
-
-        this.emit('out');
-
+        
         // Configure envrionment
         this.stdin = new Stdin();
         this.wasmFs = new WasmFs();
@@ -99,7 +104,7 @@ class ExecCore extends EventEmitter {
         
         if (opts.tty) {
             var fds = (typeof opts.tty == 'number') ? [opts.tty]
-                    : (typeof opts.tty == 'boolean') ? [1] : opts.tty;
+                    : (typeof opts.tty == 'boolean') ? [0,1,2] : opts.tty;
             for (let fd of fds)
                 this.makeTty(fd);
         }
@@ -147,5 +152,4 @@ type ExecCoreOptions = {
 
 
 export { WorkerProcess, BareProcess, ExecCore }
-
 

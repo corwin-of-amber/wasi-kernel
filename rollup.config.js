@@ -5,13 +5,13 @@ import builtins from "rollup-plugin-node-builtins";
 import node_globals from "rollup-plugin-node-globals";
 import typescript from "rollup-plugin-typescript2";
 
-import { iife, cjs, globals, targets } from "./src/infra/rollup-boilerplate";
+import {
+  iife, cjs, globals, targets, defines
+} from "./src/infra/rollup-boilerplate";
 
 
 let plugins = [
-  resolve({
-    preferBuiltins: true
-  }),
+  resolve({ preferBuiltins: true }),
   commonjs(),
   builtins(),
   node_globals(),
@@ -24,18 +24,23 @@ export default targets([
   {
     input: "src/kernel/index.ts",
     output: [iife("kernel.iife.js", "kernel")],
-    plugins: plugins
+    plugins: [defines.browser, ...plugins]
   },
   {
     input: "src/kernel/index.ts",
     output: [cjs("kernel.cjs.js")],
-    plugins: plugins,
+    plugins: [defines.node, ...plugins],
     external: Object.keys(globals)
   },
   {
-    key: 'worker.iife',
     input: "src/kernel/worker.ts",
     output: [iife("worker.iife.js", "worker")],
-    plugins: plugins
+    plugins: [defines.browser, ...plugins]
+  },
+  {
+    input: "src/kernel/worker.ts",
+    output: [cjs("worker.cjs.js")],
+    plugins: [defines.node, ...plugins],
+    external: Object.keys(globals)
   }
 ]);
