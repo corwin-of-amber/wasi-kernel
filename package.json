@@ -2,8 +2,7 @@
   "name": "wasm",
   "version": "0.1.0",
   "description": "",
-  "author": "",
-  "license": "ISC",
+  "main": "./dist/kernel.cjs.js",
   "dependencies": {
     "@wasmer/wasi": "^0.3.0",
     "@wasmer/wasm-transformer": "^0.3.0",
@@ -20,5 +19,7 @@
     "rollup-plugin-typescript2": "^0.24.3",
     "source-map-support": "^0.5.13",
     "typescript": "^3.6.4"
-  }
+  },
+  "author": "",
+  "license": "ISC"
 }
