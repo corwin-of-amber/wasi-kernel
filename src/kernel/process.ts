@@ -43,7 +43,9 @@ class WorkerProcess extends ProcessBase {
         this.worker = new Worker(workerJs);
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin) this.stdin_raw = Stdin.from(ev.data.stdin);
-            if (ev.data.fd) this.stdout.write(ev.data.data);
+            if (ev.data.fd)    this.stdout.write(ev.data.data);
+            if (ev.data.error) this.emit('error', ev.data.error, wasm);
+            if (ev.data.exit)  this.emit('exit', ev.data.exit);
         });
 
         if (wasm) this.exec(wasm);

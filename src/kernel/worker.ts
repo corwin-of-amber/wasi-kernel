@@ -9,6 +9,12 @@ postMessage({stdin: core.stdin});
 
 core.on('stream:out', ev => postMessage(ev));
 
-onMessage((ev) => {
-    if (ev.data.exec) core.start(ev.data.exec);
+onMessage(async (ev) => {
+    if (ev.data.exec) {
+        try {
+            await core.start(ev.data.exec);
+        }
+        catch (e) { postMessage({error: e}); }
+        postMessage({exit: {code: 0}});
+    }
 });
