@@ -4,12 +4,15 @@ import {EventEmitter} from 'events';
 
 class Stdin {
 
-    queue : Uint8Array;
-    wait : Int32Array;
+    queue: Uint8Array;
+    wait: Int32Array;
+
+    blocking: boolean;
 
     constructor(_from: StdinProps = {}) {
         this.queue = _from.queue || new Uint8Array(new SharedArrayBuffer(1024));
         this.wait = _from.wait || new Int32Array(new SharedArrayBuffer(8));
+        this.blocking = true;
     }
 
     static from(props) { return new Stdin(props); }
@@ -20,6 +23,9 @@ class Stdin {
         let head = Atomics.load(this.wait, 0), tail = Atomics.load(this.wait, 1);
 
         if (head == tail && length > 0) {
+            if (offset > 0) return 0;
+            else if (!this.blocking) throw {errno: 35, code: 'EAGAIN'};
+            
             Atomics.wait(this.wait, 1, tail);
             tail = Atomics.load(this.wait, 1);
         }

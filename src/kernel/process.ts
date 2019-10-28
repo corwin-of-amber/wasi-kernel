@@ -2,6 +2,8 @@ import { EventEmitter } from 'events';
 import WASI from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import { Stdin, TransformStreamDuplex } from './streams';
+import { Tty } from './bits/tty';
+import { Proc } from './bits/proc';
 
 import { Worker } from './bindings/workers';
 
@@ -83,6 +85,9 @@ class ExecCore extends EventEmitter {
     wasi: WASI
     wasm: WebAssembly.WebAssemblyInstantiatedSource
 
+    tty: Tty;
+    proc: Proc;
+
     constructor(opts: ExecCoreOptions = {}) {
         super();
         
@@ -96,7 +101,7 @@ class ExecCore extends EventEmitter {
 
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
-          args: [],
+          args: ['.'],
           env: {},
           bindings: {
             ...WASI.defaultBindings,
@@ -104,11 +109,14 @@ class ExecCore extends EventEmitter {
           }
         });
         
+        this.tty = new Tty(this.wasi, this.stdin);
+        this.proc = new Proc(this.wasi);
+
         if (opts.tty) {
             var fds = (typeof opts.tty == 'number') ? [opts.tty]
                     : (typeof opts.tty == 'boolean') ? [0,1,2] : opts.tty;
             for (let fd of fds)
-                this.makeTty(fd);
+                this.tty.makeTty(fd);
         }
     }
 
@@ -117,10 +125,11 @@ class ExecCore extends EventEmitter {
         const bytes = await this.fetch(wasmUri);
         
         this.wasm = await WebAssembly.instantiate(bytes, {
-            wasi_unstable: this.wasi.wasiImport
+            wasi_unstable: {...this.wasi.wasiImport, ...this.tty.import},
+            env: this.proc.env
         });
     
-        // Start the WebAssembly WASI instance!
+        // Start the WebAssembly WASI instance
         this.wasi.start(this.wasm.instance);
     }
 
@@ -135,12 +144,6 @@ class ExecCore extends EventEmitter {
         }
     }
     
-    makeTty(fd: number) {
-        // Make isatty(fd) return `true`
-        this.wasi.FD_MAP.get(fd).filetype = 2;
-        this.wasi.FD_MAP.get(fd).rights.base &= ~BigInt(0x24);
-    }
-
     emitWrite(fd: number, buffer: Buffer | Uint8Array) {
         this.emit('stream:out', {fd: fd, data: buffer});
         return buffer.length;
@@ -154,4 +157,3 @@ type ExecCoreOptions = {
 
 
 export { WorkerProcess, BareProcess, ExecCore }
-
