@@ -3,17 +3,18 @@ import WASI from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import { Stdin, TransformStreamDuplex } from './streams';
 import { Tty } from './bits/tty';
-import { Proc } from './bits/proc';
+import { Proc, SignalVector } from './bits/proc';
 
 import { Worker } from './bindings/workers';
 
 
 abstract class ProcessBase extends EventEmitter {
 
-    stdin : TransformStreamDuplex
-    stdout : TransformStreamDuplex
+    stdin:  TransformStreamDuplex
+    stdout: TransformStreamDuplex
 
-    stdin_raw : Stdin
+    stdin_raw: Stdin
+    sigvec: SignalVector
 
     constructor() {
         super();
@@ -35,6 +36,10 @@ abstract class ProcessBase extends EventEmitter {
 }
 
 
+/**
+ * Suitable for running a WASI process in a Web Worker or
+ * a Node.js worker thread.
+ */
 class WorkerProcess extends ProcessBase {
 
     worker : Worker
@@ -44,10 +49,11 @@ class WorkerProcess extends ProcessBase {
         
         this.worker = new Worker(workerJs);
         this.worker.addEventListener('message', ev => {
-            if (ev.data.stdin) this.stdin_raw = Stdin.from(ev.data.stdin);
-            if (ev.data.fd)    this.stdout.write(ev.data.data);
-            if (ev.data.error) this.emit('error', ev.data.error, wasm);
-            if (ev.data.exit)  this.emit('exit', ev.data.exit);
+            if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
+            if (ev.data.sigvec) this.sigvec = ev.data.sigvec;
+            if (ev.data.fd)     this.stdout.write(ev.data.data);
+            if (ev.data.error)  this.emit('error', ev.data.error, wasm);
+            if (ev.data.exit)   this.emit('exit', ev.data.exit);
         });
 
         if (wasm) this.exec(wasm);
@@ -88,6 +94,8 @@ class ExecCore extends EventEmitter {
     tty: Tty;
     proc: Proc;
 
+    debug: (...args: any) => void;
+
     constructor(opts: ExecCoreOptions = {}) {
         super();
         
@@ -118,6 +126,11 @@ class ExecCore extends EventEmitter {
             for (let fd of fds)
                 this.tty.makeTty(fd);
         }
+
+        // Debug prints
+        this.debug = (...args: any) => this.emitWrite(2, Buffer.from(args.toString()+'\n'));
+        this.tty.debug = this.debug;
+        this.proc.debug = this.debug;
     }
 
     async start(wasmUri: string) {
@@ -137,7 +150,7 @@ class ExecCore extends EventEmitter {
         if (typeof fetch !== 'undefined') {
             const response = await fetch(uri);
             return await response.arrayBuffer();
-        }        
+        }
         else {
             const fs = require('fs');
             return fs.readFileSync(uri);

@@ -5,9 +5,11 @@ var names = [
     "signal",
     "raise",
     "pipe",
+    "dup",
     "dup2",
     "setjmp",
     "execve",
+    "execvp",
     "getpwnam",
     "tcsetpgrp",
     "kill",
@@ -17,7 +19,9 @@ var names = [
     "setpgid",
     "vfork",
     "strsignal",
+    "wait",
     "wait3",
+    "waitpid",
     "sigsuspend",
     "getuid",
     "geteuid",
@@ -34,7 +38,8 @@ var names = [
 
 const stubs = {};
 for (let nm of names)
-    stubs[nm] = function() { console.log(`stub for ${nm}`, [...arguments]); }
+    stubs[nm] = function() { stubs.debug(`stub for ${nm} [${[...arguments]}]`); }
 
+stubs.debug = () => {};
 
 export default stubs

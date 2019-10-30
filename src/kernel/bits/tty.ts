@@ -9,11 +9,15 @@ class Tty {
     stdin: Stdin;
     stdin_fl: number;
 
+    debug: (...args: any) => void;
+
     constructor(wasi: WASI, stdin: Stdin) {
         this.wasi = wasi;
         this.stdin = stdin;
 
         this.stdin_fl = 4;
+
+        this.debug = () => {};
     }
 
     makeTty(fd: number) {
@@ -26,8 +30,8 @@ class Tty {
     // Overrides for WASI.wasiImports
     // ------------------------------
 
-    fd_fdstat_set_flags(fd, flags) {
-        //this.emitWrite(1, Buffer.from(`call set_flags ${sflags}\n`));
+    fd_fdstat_set_flags(fd: number, flags: number) {
+        this.debug(`call set_flags ${flags}\n`);
         if (fd === 0) {
             this.stdin_fl = flags;
             this.stdin.blocking = !(flags & 0x4);

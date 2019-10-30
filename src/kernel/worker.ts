@@ -5,7 +5,7 @@ import { postMessage, onMessage } from './bindings/workers';
 const core = new ExecCore({tty: true});
 
 
-postMessage({stdin: core.stdin});
+postMessage({stdin: core.stdin, sigvec: core.proc.sigvec});
 
 core.on('stream:out', ev => postMessage(ev));
 
