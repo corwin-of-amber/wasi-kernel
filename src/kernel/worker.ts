@@ -5,16 +5,21 @@ import { postMessage, onMessage } from './bindings/workers';
 const core = new ExecCore({tty: true});
 
 
-postMessage({stdin: core.stdin, sigvec: core.proc.sigvec});
+postMessage(core.share());
 
 core.on('stream:out', ev => postMessage(ev));
+core.proc.on('signal', ev => postMessage({event: 'signal', arg: ev}));
+core.proc.on('suspend', ev => postMessage({event: 'suspend'}));
 
 onMessage(async (ev) => {
     if (ev.data.exec) {
         try {
             await core.start(ev.data.exec);
         }
-        catch (e) { postMessage({error: e}); }
-        postMessage({exit: {code: 0}});
+        catch (e) { postMessage({event: 'error', arg: e}); }
+        postMessage({event: 'exit', arg: {code: 0}});
     }
 });
+
+
+export { core };  // useful for debugging

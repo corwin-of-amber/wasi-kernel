@@ -7,8 +7,7 @@
     "@wasmer/wasi": "^0.3.0",
     "@wasmer/wasm-transformer": "^0.3.0",
     "@wasmer/wasmfs": "^0.3.0",
-    "deasync": "^0.1.15",
-    "fibers": "^4.0.2"
+    "assert": "^2.0.0"
   },
   "devDependencies": {
     "rollup": "^1.25.2",

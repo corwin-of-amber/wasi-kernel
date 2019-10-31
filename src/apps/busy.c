@@ -23,5 +23,7 @@ int main(int argc, char *argv[]) {
     struct sigaction action;
     action.sa_sigaction = &cmdloop;
     sigaction(SIGINT, &action, 0);
+
+    sigsuspend(0);
 }
 

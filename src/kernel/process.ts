@@ -6,6 +6,7 @@ import { Tty } from './bits/tty';
 import { Proc, SignalVector } from './bits/proc';
 
 import { Worker } from './bindings/workers';
+import { utf8encode } from './bindings/utf8';
 
 
 abstract class ProcessBase extends EventEmitter {
@@ -50,10 +51,18 @@ class WorkerProcess extends ProcessBase {
         this.worker = new Worker(workerJs);
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
-            if (ev.data.sigvec) this.sigvec = ev.data.sigvec;
+            if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);
             if (ev.data.fd)     this.stdout.write(ev.data.data);
-            if (ev.data.error)  this.emit('error', ev.data.error, wasm);
-            if (ev.data.exit)   this.emit('exit', ev.data.exit);
+
+            if (ev.data.event)  this.emit(ev.data.event, ev.data.arg, wasm);
+
+            if (ev.data.event === 'suspend') {
+                // Emulate SIGCHLD (for testing)
+                setTimeout(() => {
+                    console.log("- wake rainbow -");
+                    this.sigvec.send(16);
+                }, 1000);
+            }
         });
 
         if (wasm) this.exec(wasm);
@@ -90,6 +99,7 @@ class ExecCore extends EventEmitter {
     wasmFs: WasmFs
     wasi: WASI
     wasm: WebAssembly.WebAssemblyInstantiatedSource
+    funcTable: WebAssembly.Table
 
     tty: Tty;
     proc: Proc;
@@ -107,18 +117,23 @@ class ExecCore extends EventEmitter {
         this.wasmFs.volume.fds[1].write = d => this.emitWrite(1, d);
         this.wasmFs.volume.fds[2].write = d => this.emitWrite(2, d);
 
+        this.funcTable = new WebAssembly.Table({
+            initial: opts.funcTableSz || 1024, 
+            element: 'anyfunc'
+        });
+
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
-          args: ['.'],
-          env: {},
-          bindings: {
-            ...WASI.defaultBindings,
-            fs: this.wasmFs.fs
-          }
+            args: ['.'],
+            env: {},
+            bindings: {
+                ...WASI.defaultBindings,
+                fs: this.wasmFs.fs
+            }
         });
         
         this.tty = new Tty(this.wasi, this.stdin);
-        this.proc = new Proc(this.wasi);
+        this.proc = new Proc(this);
 
         if (opts.tty) {
             var fds = (typeof opts.tty == 'number') ? [opts.tty]
@@ -128,7 +143,7 @@ class ExecCore extends EventEmitter {
         }
 
         // Debug prints
-        this.debug = (...args: any) => this.emitWrite(2, Buffer.from(args.toString()+'\n'));
+        this.debug = (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'));
         this.tty.debug = this.debug;
         this.proc.debug = this.debug;
     }
@@ -139,7 +154,10 @@ class ExecCore extends EventEmitter {
         
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.import},
-            env: this.proc.env
+            env: {
+                __indirect_function_table: this.funcTable, 
+                ...this.proc.env
+            }
         });
     
         // Start the WebAssembly WASI instance
@@ -156,6 +174,14 @@ class ExecCore extends EventEmitter {
             return fs.readFileSync(uri);
         }
     }
+
+    /**
+     * Returns an object that can be shared with a parent thread
+     * (via e.g. Worker.postMessage) to communicate with this core.
+     */
+    share(): any {
+        return {stdin: this.stdin, sigvec: this.proc.sigvec.to()};
+    }
     
     emitWrite(fd: number, buffer: Buffer | Uint8Array) {
         this.emit('stream:out', {fd: fd, data: buffer});
@@ -164,7 +190,8 @@ class ExecCore extends EventEmitter {
 }
 
 type ExecCoreOptions = {
-    tty? : boolean | number | [number]
+    tty? : boolean | number | [number],
+    funcTableSz? : number
 };
 
 

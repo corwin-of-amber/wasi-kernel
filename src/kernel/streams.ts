@@ -15,7 +15,11 @@ class Stdin {
         this.blocking = true;
     }
 
-    static from(props) { return new Stdin(props); }
+    static from(props: StdinProps) { return new Stdin(props); }
+
+    to(): StdinProps {
+        return {queue: this.queue, wait: this.wait};
+    }
 
     read(readBuffer: Uint8Array, offset: number, length: number, position) {
     
