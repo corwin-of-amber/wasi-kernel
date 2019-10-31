@@ -6,7 +6,7 @@ const sourcemapOption = process.env.PROD ? undefined : "inline";
 const globals = {};
 
 const out = (x, type) => ({ file: `dist/${x}`, format: type, sourcemap: sourcemapOption }),
-      iife = (fn, name) => Object.assign(out(fn, 'iife'), {name}),
+      iife = (fn, name) => Object.assign(out(fn, 'iife'), {name, globals}),
       esm =  fn => Object.assign(out(fn, 'esm'), {globals}),
       cjs =  fn => Object.assign(out(fn, 'cjs'), {globals});
 

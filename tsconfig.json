@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": ["dom", "webworker"],
-    "esModuleInterop": true
+    "lib": ["webworker"],
+    "esModuleInterop": true,
+    "downlevelIteration": true
   }
 }

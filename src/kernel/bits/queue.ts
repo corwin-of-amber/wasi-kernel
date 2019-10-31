@@ -1,0 +1,76 @@
+
+type IntArray = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array;
+
+
+class SharedQueue<A extends IntArray> {
+
+    _data: A;
+    _wait: Int32Array;
+
+    constructor(props: SharedQueueProps<A>) {
+        this._data = props.data;
+        this._wait = props.wait || new Int32Array(new SharedArrayBuffer(8));
+    }
+
+    static from<A extends IntArray>(props: SharedQueueProps<A>) {
+        return new SharedQueue<A>(props);
+    }
+
+    to(): SharedQueueProps<A> {
+        return {data: this._data, wait: this._wait};
+    }
+
+    enqueue(v: number) {
+        let head = Atomics.load(this._wait, 0), tail = Atomics.load(this._wait, 1);
+
+        head ? head-- : (head = this._data.length);
+
+        if (head != tail) {
+            Atomics.store(this._data, tail++, v);
+            Atomics.store(this._wait, 1, tail);
+            Atomics.notify(this._wait, 1, 1);
+            return 1;
+        }
+        else return 0;
+    }
+
+    enqueueAll(vs: IntArray) {
+        let head = Atomics.load(this._wait, 0), tail = Atomics.load(this._wait, 1);
+
+        head ? head-- : (head = this._data.length);
+
+        var i;
+        for (i = 0; head != tail && i < vs.length; i++) {
+            Atomics.store(this._data, tail++, vs[i]);
+        }
+
+        if (i > 0) {
+            Atomics.store(this._wait, 1, tail);
+            Atomics.notify(this._wait, 1, 1);
+        }
+        return i;
+    }
+
+    wait() {
+        let head = Atomics.load(this._wait, 0), tail = Atomics.load(this._wait, 1);
+
+        while (head == tail) {
+            Atomics.wait(this._wait, 1, tail);
+            tail = Atomics.load(this._wait, 1);
+        }
+    }
+
+    dequeue() {
+        this.wait();
+
+        let head = Atomics.load(this._wait, 0),
+            top = Atomics.load(this._data, head++)
+        Atomics.store(this._wait, 0, head);
+        return top;
+    }
+}
+
+type SharedQueueProps<A> = { data: A, wait?: Int32Array };
+
+
+export { SharedQueue, SharedQueueProps }

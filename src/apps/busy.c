@@ -20,6 +20,9 @@ int main(int argc, char *argv[]) {
     setvbuf(stdin, 0, _IONBF, 0);  // unbuffered
     printf("isatty(0) = %d\n", isatty(0));
 
+    char cwd[256];
+    printf("getcwd() = %s\n", getcwd(cwd, sizeof(cwd)));
+
     struct sigaction action;
     action.sa_sigaction = &cmdloop;
     sigaction(SIGINT, &action, 0);

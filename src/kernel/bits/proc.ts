@@ -2,7 +2,9 @@ import assert from 'assert';
 
 import stubs from './stubs';
 import { EventEmitter } from "events";
-import { ExecCore } from "..";
+import { ExecCore } from "../process";
+import { Buffer } from 'buffer';
+import { SharedQueue } from './queue';
 
 
 
@@ -10,17 +12,21 @@ class Proc extends EventEmitter {
 
     core: ExecCore;
     sigvec: SignalVector;
+    childq: ChildProcessQueue;
+
+    childset: Set<number>;
 
     debug: (...args: any) => void
 
     constructor(core: ExecCore) {
         super();
         this.core = core;
+
         this.sigvec = new SignalVector;
-        this.sigvec.on('signal', ev => {
-            this.debug(`-- received signal -- ${ev.signal}`);
-            this.emit('signal', ev);
-        });
+        this.sigvec.on('signal', ev => this.emit('signal', ev));
+
+        this.childq = new SharedQueue({data: new Uint32Array(new SharedArrayBuffer(4 * 128))});
+        this.childset = new Set;
     }
 
     get env() {
@@ -53,16 +59,17 @@ class Proc extends EventEmitter {
     }
 
     vfork() {
-        return 1;
+        var pid = Math.max(0, ...this.childset) + 1;
+        this.childset.add(pid);
+        this.emit('spawn', {pid});
+        return pid;
     }
 
-    wait3() {
-        if ((<any>this).waitflag)
-            return 1;
-        else {
-            (<any>this).waitflag = true;
-            return 0;
-        }
+    wait3(stat_loc: i32, options: i32, rusage: i32) {
+        this.debug(`wait3(${stat_loc}, ${options}, ${rusage})`);
+        var pid = this.childq.dequeue();
+        this.debug(`  -> ${pid}`);
+        return pid;
     }
 
     // ------------
@@ -74,7 +81,6 @@ class Proc extends EventEmitter {
     }
 
     sigsuspend(/* ... */) {
-        this.emit('suspend');
         this.sigvec.receive();
     }
 
@@ -121,8 +127,12 @@ class SignalVector extends EventEmitter {
 
         Atomics.wait(this.wait, 0, Atomics.load(this.wait, 0));
 
+        this.sweep(signums);
+        return -1;
+    }
+
+    sweep(signums?: number[]) {
         for (let i = 1; i < NSIG; i++) {
-            //this.debug(`signal ${i}: ${this._snapshot[i]} --> ${this.wait[i]}`);
             if (!signums || signums.includes(i)) {
                 let h = this.handlers[i];
                 if (h && this._snapshot[i] < this.wait[i]) {
@@ -132,7 +142,6 @@ class SignalVector extends EventEmitter {
                 this._snapshot[i] = this.wait[i];
             }
         }
-        return -1;
     }
 
 }
@@ -147,6 +156,9 @@ type sighandler = (signum: number) => void;
 const NSIG = 20;
 
 
+type ChildProcessQueue = SharedQueue<Uint32Array>;
+
+
 function bindAll(instance: any, methods: string[]) {
     return methods.reduce((d, m) =>
         Object.assign(d, {[m]: instance[m].bind(instance)}), {});
@@ -154,4 +166,4 @@ function bindAll(instance: any, methods: string[]) {
 
 
 
-export { Proc, SignalVector }
+export { Proc, SignalVector, ChildProcessQueue }

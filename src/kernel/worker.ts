@@ -7,9 +7,9 @@ const core = new ExecCore({tty: true});
 
 postMessage(core.share());
 
-core.on('stream:out', ev => postMessage(ev));
+core.on('stream:out',  ev => postMessage(ev));
 core.proc.on('signal', ev => postMessage({event: 'signal', arg: ev}));
-core.proc.on('suspend', ev => postMessage({event: 'suspend'}));
+core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
 
 onMessage(async (ev) => {
     if (ev.data.exec) {

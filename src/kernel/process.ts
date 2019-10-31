@@ -3,10 +3,11 @@ import WASI from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import { Stdin, TransformStreamDuplex } from './streams';
 import { Tty } from './bits/tty';
-import { Proc, SignalVector } from './bits/proc';
+import { Proc, SignalVector, ChildProcessQueue } from './bits/proc';
 
 import { Worker } from './bindings/workers';
 import { utf8encode } from './bindings/utf8';
+import { SharedQueue } from './bits/queue';
 
 
 abstract class ProcessBase extends EventEmitter {
@@ -16,6 +17,7 @@ abstract class ProcessBase extends EventEmitter {
 
     stdin_raw: Stdin
     sigvec: SignalVector
+    childq: ChildProcessQueue
 
     constructor() {
         super();
@@ -52,15 +54,16 @@ class WorkerProcess extends ProcessBase {
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
             if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);
+            if (ev.data.childq) this.childq = SharedQueue.from(ev.data.childq);
             if (ev.data.fd)     this.stdout.write(ev.data.data);
 
             if (ev.data.event)  this.emit(ev.data.event, ev.data.arg, wasm);
 
-            if (ev.data.event === 'suspend') {
-                // Emulate SIGCHLD (for testing)
+            if (ev.data.event === 'spawn') {
+                // Emulate subprocess 1 exiting (for testing)
                 setTimeout(() => {
                     console.log("- wake rainbow -");
-                    this.sigvec.send(16);
+                    this.childq.enqueue(ev.data.arg.pid);
                 }, 1000);
             }
         });
@@ -101,10 +104,10 @@ class ExecCore extends EventEmitter {
     wasm: WebAssembly.WebAssemblyInstantiatedSource
     funcTable: WebAssembly.Table
 
-    tty: Tty;
-    proc: Proc;
+    tty: Tty
+    proc: Proc
 
-    debug: (...args: any) => void;
+    debug: (...args: any) => void
 
     constructor(opts: ExecCoreOptions = {}) {
         super();
@@ -180,7 +183,8 @@ class ExecCore extends EventEmitter {
      * (via e.g. Worker.postMessage) to communicate with this core.
      */
     share(): any {
-        return {stdin: this.stdin, sigvec: this.proc.sigvec.to()};
+        return {stdin: this.stdin,
+            sigvec: this.proc.sigvec.to(), childq: this.proc.childq.to()};
     }
     
     emitWrite(fd: number, buffer: Buffer | Uint8Array) {
