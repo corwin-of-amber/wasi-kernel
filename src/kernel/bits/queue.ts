@@ -9,7 +9,7 @@ class SharedQueue<A extends IntArray> {
 
     constructor(props: SharedQueueProps<A>) {
         this._data = props.data;
-        this._wait = props.wait || new Int32Array(new SharedArrayBuffer(8));
+        this._wait = props.wait || new Int32Array(new SharedArrayBuffer(4 * 2));
     }
 
     static from<A extends IntArray>(props: SharedQueueProps<A>) {
@@ -39,7 +39,7 @@ class SharedQueue<A extends IntArray> {
 
         head ? head-- : (head = this._data.length);
 
-        var i;
+        var i: number;
         for (i = 0; head != tail && i < vs.length; i++) {
             Atomics.store(this._data, tail++, vs[i]);
         }
@@ -65,8 +65,33 @@ class SharedQueue<A extends IntArray> {
 
         let head = Atomics.load(this._wait, 0),
             top = Atomics.load(this._data, head++)
+
         Atomics.store(this._wait, 0, head);
+        Atomics.notify(this._wait, 0, 1);
         return top;
+    }
+
+    dequeueSome(count: number, out: A, offset: number): number {
+        if (count == 0) return 0;
+
+        this.wait();
+
+        let head = Atomics.load(this._wait, 0), tail = Atomics.load(this._wait, 1);
+
+        var i: number;
+        for (i = 0; head != tail && offset < count; i++) {
+            out[offset++] = Atomics.load(this._data, head++);
+            if (tail >= this._data.length) tail = 0;
+        }
+
+        Atomics.store(this._wait, 0, head);
+        Atomics.notify(this._wait, 0, 1);
+        return i;        
+    }
+
+    isEmpty() { 
+        let head = Atomics.load(this._wait, 0), tail = Atomics.load(this._wait, 1);
+        return head == tail;
     }
 }
 

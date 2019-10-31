@@ -183,7 +183,7 @@ class ExecCore extends EventEmitter {
      * (via e.g. Worker.postMessage) to communicate with this core.
      */
     share(): any {
-        return {stdin: this.stdin,
+        return {stdin: this.stdin.to(),
             sigvec: this.proc.sigvec.to(), childq: this.proc.childq.to()};
     }
     

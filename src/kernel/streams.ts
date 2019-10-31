@@ -1,74 +1,48 @@
-import {EventEmitter} from 'events';
+import { EventEmitter } from 'events';
+import { SharedQueue, SharedQueueProps } from './bits/queue';
 
 
 
 class Stdin {
 
-    queue: Uint8Array;
+    queue: SharedQueue<Uint8Array>;
     wait: Int32Array;
 
     blocking: boolean;
 
     constructor(_from: StdinProps = {}) {
-        this.queue = _from.queue || new Uint8Array(new SharedArrayBuffer(1024));
-        this.wait = _from.wait || new Int32Array(new SharedArrayBuffer(8));
+        this.queue = SharedQueue.from(_from.queue ||
+            {data: new Uint8Array(new SharedArrayBuffer(1024))});
         this.blocking = true;
     }
 
     static from(props: StdinProps) { return new Stdin(props); }
 
     to(): StdinProps {
-        return {queue: this.queue, wait: this.wait};
+        return {queue: this.queue.to()}
     }
 
     read(readBuffer: Uint8Array, offset: number, length: number, position) {
-    
-        // Wait for stdin
-        let head = Atomics.load(this.wait, 0), tail = Atomics.load(this.wait, 1);
-
-        if (head == tail && length > 0) {
-            if (offset > 0) return 0;
-            else if (!this.blocking) throw {errno: 35, code: 'EAGAIN'};
-            
-            Atomics.wait(this.wait, 1, tail);
-            tail = Atomics.load(this.wait, 1);
-        }
         
         if (length > readBuffer.length) length = readBuffer.length;
 
-        var i: number;
-        for (i = 0; head != tail && offset < length; i++) {
-            readBuffer[offset++] = Atomics.load(this.queue, head++);
-            if (tail >= this.queue.length) tail = 0;
+        if (this.queue.isEmpty()) {
+            if (offset > 0) return 0;
+            else if (!this.blocking) throw {errno: 35, code: 'EAGAIN'};
         }
 
-        Atomics.store(this.wait, 0, head);
-        return i;
+        return this.queue.dequeueSome(length, readBuffer, offset);
     }
 
     write(writeBuffer: Uint8Array) {
-        let head = Atomics.load(this.wait, 0), tail = Atomics.load(this.wait, 1);
-
-        head ? head-- : (head = this.queue.length);
-
-        var i;
-        for (i = 0; head != tail && i < writeBuffer.length; i++) {
-            Atomics.store(this.queue, tail++, writeBuffer[i]);
-        }
-
-        if (i > 0) {
-            Atomics.store(this.wait, 1, tail);
-            Atomics.notify(this.wait, 1, 1);
-        }
-        return i;
+        return this.queue.enqueueAll(writeBuffer);
     }
 
 }
 
 
 type StdinProps = {
-    queue? : Uint8Array;
-    wait? : Int32Array;
+    queue? : SharedQueueProps<Uint8Array>;
 };
 
 
