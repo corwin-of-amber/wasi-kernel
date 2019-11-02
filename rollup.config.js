@@ -18,7 +18,7 @@ let plugins = [
   typescript()
 ];
 
-Object.assign(globals, {'@wasmer/wasi': 'WASI', '@wasmer/wasmfs': 'WasmFs'});
+Object.assign(globals, {'@wasmer/wasi': 'WASI', '@wasmer/wasmfs': 'WasmFs', '@wasmer/wasm-transformer': ''});
 
 export default targets([
   {

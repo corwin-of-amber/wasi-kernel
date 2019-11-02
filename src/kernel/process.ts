@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import WASI from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
+import { lowerI64Imports } from "@wasmer/wasm-transformer";
+
 import { Stdin, TransformStreamDuplex } from './streams';
 import { Tty } from './bits/tty';
 import { Proc, SignalVector, ChildProcessQueue } from './bits/proc';
@@ -102,7 +104,6 @@ class ExecCore extends EventEmitter {
     wasmFs: WasmFs
     wasi: WASI
     wasm: WebAssembly.WebAssemblyInstantiatedSource
-    funcTable: WebAssembly.Table
 
     tty: Tty
     proc: Proc
@@ -120,23 +121,24 @@ class ExecCore extends EventEmitter {
         this.wasmFs.volume.fds[1].write = d => this.emitWrite(1, d);
         this.wasmFs.volume.fds[2].write = d => this.emitWrite(2, d);
 
-        this.funcTable = new WebAssembly.Table({
-            initial: opts.funcTableSz || 1024, 
-            element: 'anyfunc'
-        });
+        this.wasmFs.volume.writeFileSync("/a", "data");
+
+        this.proc = new Proc(this);
 
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
             args: ['.'],
-            env: {},
+            env: {PATH: '/'},
             bindings: {
                 ...WASI.defaultBindings,
-                fs: this.wasmFs.fs
-            }
+                fs: this.wasmFs.fs,
+                path: this.proc.path
+            },
+            preopenDirectories: {'/': '/'}
         });
         
+        // Initialize tty (for streaming stdin)
         this.tty = new Tty(this.wasi, this.stdin);
-        this.proc = new Proc(this);
 
         if (opts.tty) {
             var fds = (typeof opts.tty == 'number') ? [opts.tty]
@@ -153,14 +155,13 @@ class ExecCore extends EventEmitter {
 
     async start(wasmUri: string) {
         // Fetch Wasm binary and instantiate WebAssembly instance
-        const bytes = await this.fetch(wasmUri);
+        var bytes = await this.fetch(wasmUri);
         
+        bytes = await lowerI64Imports(bytes);
+
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.import},
-            env: {
-                __indirect_function_table: this.funcTable, 
-                ...this.proc.env
-            }
+            env: this.proc.env
         });
     
         // Start the WebAssembly WASI instance
@@ -170,7 +171,7 @@ class ExecCore extends EventEmitter {
     async fetch(uri: string) {
         if (typeof fetch !== 'undefined') {
             const response = await fetch(uri);
-            return await response.arrayBuffer();
+            return new Uint8Array(await response.arrayBuffer());
         }
         else {
             const fs = require('fs');

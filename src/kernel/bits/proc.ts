@@ -1,4 +1,5 @@
 import assert from 'assert';
+import path from 'path';
 
 import stubs from './stubs';
 import { EventEmitter } from "events";
@@ -11,16 +12,21 @@ import { SharedQueue } from './queue';
 class Proc extends EventEmitter {
 
     core: ExecCore;
+    opts: ProcOptions;
+
     sigvec: SignalVector;
     childq: ChildProcessQueue;
 
     childset: Set<number>;
 
+    funcTable?: WebAssembly.Table;
+
     debug: (...args: any) => void
 
-    constructor(core: ExecCore) {
+    constructor(core: ExecCore, opts: ProcOptions={}) {
         super();
         this.core = core;
+        this.opts = opts;
 
         this.sigvec = new SignalVector;
         this.sigvec.on('signal', ev => this.emit('signal', ev));
@@ -32,10 +38,26 @@ class Proc extends EventEmitter {
     get env() {
         stubs.debug = this.debug; // global :(
         this.sigvec.debug = this.debug;
+
+        if (!this.funcTable) {
+            this.funcTable = new WebAssembly.Table({
+                initial: this.opts.funcTableSz || 1024, 
+                element: 'anyfunc'
+            });
+        }
+
         return {
             ...stubs,
+            __indirect_function_table: this.funcTable, 
             ...bindAll(this, ['getcwd', 'longjmp', 'vfork', 'wait3',
                               'sigkill', 'sigsuspend', 'sigaction'])
+        };
+    }
+
+    get path() {
+        return {...path,
+            resolve: (dir, ...fns) =>
+                path.resolve(dir || '/', ...fns)
         };
     }
 
@@ -87,13 +109,17 @@ class Proc extends EventEmitter {
     sigaction(signum: i32, act: i32, oact: i32) {
         this.debug('sigaction', signum, act, oact);
         var sa_handler = this.core.wasi.view.getUint32(act, true);
-        this.debug(' -->', sa_handler);
-        var h = <sighandler>this.core.funcTable.get(sa_handler);
-        this.debug('    ', h);
-        this.sigvec.handlers[signum] = <sighandler>this.core.funcTable.get(sa_handler);
+        var h = <sighandler>this.funcTable.get(sa_handler);
+        this.debug(' -->', sa_handler, h);
+        this.sigvec.handlers[signum] = h;
     }
 
 }
+
+type ProcOptions = {
+    funcTableSz? : number
+};
+
 
 class SignalVector extends EventEmitter {
 
