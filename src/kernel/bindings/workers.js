@@ -1,7 +1,7 @@
 var Worker, postMessage, onMessage;
 
 if (ROLLUP_IS_NODE) {
-    const worker_threads = require('worker_threads');
+    const worker_threads = (0||require)('worker_threads');
     class WorkerAdapter {
         constructor(script) {
             this.thread = new worker_threads.Worker(script);

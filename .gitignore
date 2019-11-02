@@ -2,3 +2,5 @@ node_modules
 dist
 *.wasm
 *.wat
+.*.swp
+/build
