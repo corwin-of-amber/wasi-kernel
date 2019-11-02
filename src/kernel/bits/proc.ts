@@ -35,7 +35,7 @@ class Proc extends EventEmitter {
         this.childset = new Set;
     }
 
-    get env() {
+    get import() {
         stubs.debug = this.debug; // global :(
         this.sigvec.debug = this.debug;
 
@@ -56,7 +56,7 @@ class Proc extends EventEmitter {
 
     get path() {
         return {...path,
-            resolve: (dir, ...fns) =>
+            resolve: (dir: string, ...fns: string[]) =>
                 path.resolve(dir || '/', ...fns)
         };
     }
@@ -67,8 +67,11 @@ class Proc extends EventEmitter {
 
     getcwd(buf: number, sz: number) {
         this.debug('getcwd', buf, sz);
+        /* @todo allocate buf if null */
+        let ret = `${this.core.env.CWD || ''}\0`;
+        if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
         let memory_buffer = Buffer.from(this.core.wasi.memory.buffer);
-        memory_buffer.write("/home\0", buf);
+        memory_buffer.write(ret, buf);
         return buf;
     }
 

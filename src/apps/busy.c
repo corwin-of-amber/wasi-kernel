@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     action.sa_sigaction = &cmdloop;
     sigaction(SIGINT, &action, 0);
 
-    FILE *f = fopen("/a", "r");
+    FILE *f = fopen("/home/a", "r");
 
     printf("%p\n", f);
 
@@ -54,6 +54,6 @@ int main(int argc, char *argv[]) {
     }
 
 
-    sigsuspend(0);
+    /* sigsuspend(0);*/
 }
 

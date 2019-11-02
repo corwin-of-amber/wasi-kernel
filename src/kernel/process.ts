@@ -102,6 +102,7 @@ class ExecCore extends EventEmitter {
 
     stdin: Stdin
     wasmFs: WasmFs
+    env: Environ
     wasi: WASI
     wasm: WebAssembly.WebAssemblyInstantiatedSource
 
@@ -121,14 +122,15 @@ class ExecCore extends EventEmitter {
         this.wasmFs.volume.fds[1].write = d => this.emitWrite(1, d);
         this.wasmFs.volume.fds[2].write = d => this.emitWrite(2, d);
 
-        this.wasmFs.volume.writeFileSync("/a", "data");
+        this.populateRootFs();
+        this.env = opts.env || this.defaultEnv();
 
         this.proc = new Proc(this);
 
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
             args: ['.'],
-            env: {PATH: '/'},
+            env: this.env,
             bindings: {
                 ...WASI.defaultBindings,
                 fs: this.wasmFs.fs,
@@ -161,7 +163,7 @@ class ExecCore extends EventEmitter {
 
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.import},
-            env: this.proc.env
+            env: this.proc.import
         });
     
         // Start the WebAssembly WASI instance
@@ -192,13 +194,32 @@ class ExecCore extends EventEmitter {
         this.emit('stream:out', {fd: fd, data: buffer});
         return buffer.length;
     }
+
+    /**
+     * Initial environment variables
+     */
+    defaultEnv() {
+        return {PATH: '/bin', CWD: '/home'};
+    }
+
+    /**
+     * Bootstrapping filesystem contents
+     */
+    populateRootFs() {
+        this.wasmFs.fs.mkdirSync("/home");
+        this.wasmFs.fs.writeFileSync("/home/a", "data");
+        this.wasmFs.fs.mkdirSync("/bin");
+        this.wasmFs.fs.writeFileSync("/bin/ls", '#!wasi\n{"uri":"busy.wasm"}');
+    }
 }
 
 type ExecCoreOptions = {
     tty? : boolean | number | [number],
-    funcTableSz? : number
+    funcTableSz? : number,
+    env?: Environ
 };
 
+type Environ = {[k: string]: string};
 
 
 export { WorkerProcess, BareProcess, ExecCore }
