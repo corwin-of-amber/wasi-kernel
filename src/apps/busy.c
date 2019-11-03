@@ -19,6 +19,36 @@ void cmdloop() {
     }
 }
 
+int cmd_ls(int argc, char *argv[]) {
+    for (int i = 1; i < argc; i++) {
+        char *arg = argv[i];
+
+        DIR *d = opendir(arg);
+        if (d == NULL) {
+            fprintf(stderr, "%s: %s\n", arg, strerror(errno));
+        }
+        else {
+            if (argc > 2) printf("%s:\n", arg);
+            struct dirent *dp;
+            while ((dp=readdir(d)) != NULL) {
+                printf("  %s\n", dp->d_name);
+            }
+        }
+    }
+
+    return 0;
+}
+
+int dispatch(int argc, char *argv[]) {
+    char *cmd;
+    for (int i = 0; i < 1; argc++, argv++, i++) {
+        cmd = argv[0];
+        if (strcmp(cmd, "ls") == 0) return cmd_ls(argc, argv);
+    }
+    fprintf(stderr, "no such applet: %s\n", cmd);
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
 
     setvbuf(stdin, 0, _IONBF, 0);  // unbuffered
@@ -26,6 +56,13 @@ int main(int argc, char *argv[]) {
 
     char cwd[256];
     printf("getcwd() = %s\n", getcwd(cwd, sizeof(cwd)));
+
+    printf("argc = %d\n", argc);
+    for (int i = 0; i < argc; i++) {
+        printf("argv[%d] = \"%s\"\n", i, argv[i]);
+    }
+
+    return dispatch(argc, argv);
 
     struct sigaction action;
     action.sa_sigaction = &cmdloop;

@@ -1,5 +1,6 @@
 import { ExecCore } from "./process";
 import { postMessage, onMessage } from './bindings/workers';
+import { WASIExitError } from "@wasmer/wasi";
 
 
 const core = new ExecCore({tty: true});
@@ -14,9 +15,13 @@ core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
 onMessage(async (ev) => {
     if (ev.data.exec) {
         try {
-            await core.start(ev.data.exec);
+            await core.start(ev.data.exec, ev.data.opts && ev.data.opts.argv);
         }
-        catch (e) { postMessage({event: 'error', arg: e}); }
+        catch (e) {
+            const event = (e instanceof WASIExitError) ? 'exit' : 'error';
+            postMessage({event, arg: Object.assign({}, e)});
+            return;
+        }
         postMessage({event: 'exit', arg: {code: 0}});
     }
 });

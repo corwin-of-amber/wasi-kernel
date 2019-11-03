@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
-import WASI from '@wasmer/wasi';
-import { WasmFs } from '@wasmer/wasmfs';
-import { lowerI64Imports } from "@wasmer/wasm-transformer";
+import { WASI, WASIExitError } from '@wasmer/wasi';
+import WasmFs from '@wasmer/wasmfs';
 
 import { Stdin, TransformStreamDuplex } from './streams';
 import { Tty } from './bits/tty';
@@ -14,6 +13,8 @@ import { SharedQueue } from './bits/queue';
 
 abstract class ProcessBase extends EventEmitter {
 
+    opts: ProcessStartupOptions
+
     stdin:  TransformStreamDuplex
     stdout: TransformStreamDuplex
 
@@ -21,15 +22,15 @@ abstract class ProcessBase extends EventEmitter {
     sigvec: SignalVector
     childq: ChildProcessQueue
 
-    constructor() {
+    constructor(opts: ProcessStartupOptions) {
         super();
+        this.opts = opts;
         
         if (typeof TextEncoderStream !== 'undefined') {
             this.stdin = new TransformStreamDuplex(new TextEncoderStream());
             this.stdin.on('data', bytes => this.stdin_raw.write(bytes));
 
             this.stdout = new TransformStreamDuplex(new TextDecoderStream());
-            this.stdout.on('data', console.log);
         }
         else if (typeof process !== 'undefined') {
             process.stdin.on('data', buf => this.stdin_raw.write(buf));
@@ -49,8 +50,8 @@ class WorkerProcess extends ProcessBase {
 
     worker : Worker
 
-    constructor(wasm : string, workerJs : string) {
-        super();
+    constructor(wasm : string, workerJs : string, opts: ProcessStartupOptions={}) {
+        super(opts);
         
         this.worker = new Worker(workerJs);
         this.worker.addEventListener('message', ev => {
@@ -74,7 +75,7 @@ class WorkerProcess extends ProcessBase {
     }
 
     exec(wasm: string) {
-        this.worker.postMessage({exec: wasm});
+        this.worker.postMessage({exec: wasm, opts: this.opts});
     }
 }
 
@@ -83,17 +84,18 @@ class BareProcess extends ProcessBase {
 
     core: ExecCore;
 
-    constructor(wasm: string) {
-        super();
+    constructor(wasm: string, opts: ProcessStartupOptions={}) {
+        super(opts);
         this.exec(wasm);
     }
 
     exec(wasm: string) {
-        this.core = new ExecCore({tty: true});
+        this.core = new ExecCore(this.opts);
         this.core.on('stream:out', ev => process.stdout.write(ev.data));
-        this.core.start(wasm).catch(err => {
+        this.core.start(wasm, this.opts.argv).catch(err => {
             this.emit('error', err, wasm);
-        });
+        })
+        .then(() => this.emit('exit', {code: 0}));
     }
 }
 
@@ -103,6 +105,7 @@ class ExecCore extends EventEmitter {
     stdin: Stdin
     wasmFs: WasmFs
     env: Environ
+    argv: string[]
     wasi: WASI
     wasm: WebAssembly.WebAssemblyInstantiatedSource
 
@@ -124,15 +127,17 @@ class ExecCore extends EventEmitter {
 
         this.populateRootFs();
         this.env = opts.env || this.defaultEnv();
+        this.argv = ['.'];
 
         this.proc = new Proc(this);
 
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
-            args: ['.'],
+            args: this.argv,
             env: this.env,
             bindings: {
                 ...WASI.defaultBindings,
+                exit: code => { throw new WASIExitError(code) },
                 fs: this.wasmFs.fs,
                 path: this.proc.path
             },
@@ -155,11 +160,14 @@ class ExecCore extends EventEmitter {
         this.proc.debug = this.debug;
     }
 
-    async start(wasmUri: string) {
+    async start(wasmUri: string, argv?: string[]) {
         // Fetch Wasm binary and instantiate WebAssembly instance
         var bytes = await this.fetch(wasmUri);
         
+        const {lowerI64Imports} = await import('@wasmer/wasm-transformer');
         bytes = await lowerI64Imports(bytes);
+
+        if (argv) this.argv.splice(0, Infinity, ...argv);
 
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.import},
@@ -218,6 +226,10 @@ type ExecCoreOptions = {
     funcTableSz? : number,
     env?: Environ
 };
+
+type ProcessStartupOptions = ExecCoreOptions & {
+    argv?: string[];
+}
 
 type Environ = {[k: string]: string};
 
