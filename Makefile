@@ -1,13 +1,11 @@
 
-WASI_CLANG = /opt/wasi-sdk/bin/clang
-
-CFLAGS = -Iinclude -include include/etc.h
+WASI_CLANG = wasicc
 
 busy.wasm: src/apps/busy.c include/wasi/trap64.c
-	$(WASI_CLANG) $(CFLAGS) $^ -o $@ -Wl,-allow-undefined -Wl,--import-table
+	$(WASI_CLANG) $^ -o $@ -Wl,-allow-undefined -Wl,--import-table
 
-busy32.wasm: busy.wasm lower64.js
-	node lower64.js
+busy32.wasm:
+	node scripts/lower64.js
 
 %.wat: %.wasm
 	wasm2wat --dir=. $^ -o $@

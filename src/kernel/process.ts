@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import WASI from '@wasmer/wasi';
+import { WASI } from '@wasmer/wasi/lib';
 import { WasmFs } from '@wasmer/wasmfs';
 import { lowerI64Imports } from "@wasmer/wasm-transformer";
 
@@ -10,7 +10,6 @@ import { Proc, SignalVector, ChildProcessQueue } from './bits/proc';
 import { Worker } from './bindings/workers';
 import { utf8encode } from './bindings/utf8';
 import { SharedQueue } from './bits/queue';
-
 
 abstract class ProcessBase extends EventEmitter {
 
@@ -49,10 +48,9 @@ class WorkerProcess extends ProcessBase {
 
     worker : Worker
 
-    constructor(wasm : string, workerJs : string) {
+    constructor(wasm: string, worker: Worker) {
         super();
-        
-        this.worker = new Worker(workerJs);
+        this.worker = worker;
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
             if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);
@@ -124,7 +122,6 @@ class ExecCore extends EventEmitter {
 
         this.populateRootFs();
         this.env = opts.env || this.defaultEnv();
-
         this.proc = new Proc(this);
 
         // Instantiate a new WASI Instance
@@ -138,7 +135,7 @@ class ExecCore extends EventEmitter {
             },
             preopenDirectories: {'/': '/'}
         });
-        
+
         // Initialize tty (for streaming stdin)
         this.tty = new Tty(this.wasi, this.stdin);
 
@@ -158,7 +155,7 @@ class ExecCore extends EventEmitter {
     async start(wasmUri: string) {
         // Fetch Wasm binary and instantiate WebAssembly instance
         var bytes = await this.fetch(wasmUri);
-        
+
         bytes = await lowerI64Imports(bytes);
 
         this.wasm = await WebAssembly.instantiate(bytes, {

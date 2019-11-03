@@ -1,6 +1,11 @@
 
-<script src="./dist/kernel.iife.js"></script>
+<link href="./src/kernel/worker-browser.ts" rel="preload" as="script" id="kernel-worker">
+<link href="./busy32.wasm" rel="preload" as="fetch" id="wasm-app">
+
+<script src="./src/kernel/browser.ts"></script>
 
 <script>
-var p = new kernel.WorkerProcess('/busy.wasm', './dist/worker.iife.js');
+    var kernelSrc = document.getElementById("kernel-worker").getAttribute("href");
+    var wasmAppUrl = document.getElementById("wasm-app").getAttribute("href");
+    var p = new kernel.WorkerProcess(wasmAppUrl, new Worker(kernelSrc));
 </script>

@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "description": "",
   "main": "./dist/kernel.cjs.js",
+  "scripts": {
+    "dev:browser": "npx parcel shell.html",
+    "dev:node": "npx ts-node src/kernel/node.ts",
+    "rollup": "npx rollup -c"
+  },
   "dependencies": {
     "@babel/preset-env": "^7.6.3",
-    "@wasmer/wasi": "^0.3.0",
-    "@wasmer/wasm-transformer": "^0.3.0",
-    "@wasmer/wasmfs": "^0.3.0",
+    "@wasmer/wasi": "^0.4.5",
+    "@wasmer/wasm-transformer": "^0.4.5",
+    "@wasmer/wasmfs": "^0.4.5",
     "assert": "^2.0.0",
     "buffer": "^5.4.3"
   },
@@ -15,6 +20,7 @@
     "@babel/core": "^7.6.4",
     "babelify": "^10.0.0",
     "browserify": "^16.5.0",
+    "parcel": "^1.12.4",
     "rollup": "^1.25.2",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-builtins": "^2.1.2",
@@ -23,8 +29,13 @@
     "rollup-plugin-replace": "^2.2.0",
     "rollup-plugin-typescript2": "^0.24.3",
     "source-map-support": "^0.5.13",
+    "ts-node": "^8.4.1",
     "tsify": "^4.0.1",
     "typescript": "^3.6.4"
+  },
+  "alias": {
+    "@wasmer/wasmfs": "./node_modules/@wasmer/wasmfs/lib/index.cjs",
+    "@wasmer/wasm-transformer": "./node_modules/@wasmer/wasm-transformer/lib/unoptimized/wasm-transformer.esm"
   },
   "author": "",
   "license": "ISC"
