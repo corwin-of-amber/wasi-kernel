@@ -1,4 +1,4 @@
-import { ExecCore } from "./process";
+import { ExecCore } from "./exec";
 import { postMessage, onMessage } from './bindings/workers';
 import { WASIExitError } from "@wasmer/wasi";
 

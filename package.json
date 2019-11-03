@@ -1,8 +1,9 @@
 {
-  "name": "wasm",
+  "name": "wasi-kernel",
   "version": "0.1.0",
   "description": "",
   "main": "./dist/kernel.cjs.js",
+  "browser": "./dist/kernel.iife.js",
   "dependencies": {
     "@babel/preset-env": "^7.6.3",
     "@wasmer/wasi": "^0.3.0",
@@ -17,6 +18,7 @@
     "browserify": "^16.5.0",
     "rollup": "^1.25.2",
     "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-ignore": "^1.0.5",
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-globals": "^1.4.0",
     "rollup-plugin-node-resolve": "^5.2.0",

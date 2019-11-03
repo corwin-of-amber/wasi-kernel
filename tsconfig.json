@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "module": "esNext",
+    "target": "esNext",
     "lib": ["webworker"],
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "downlevelIteration": true,
     "outDir": "build"

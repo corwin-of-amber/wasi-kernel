@@ -1,6 +1,6 @@
-
 <script src="./dist/kernel.iife.js"></script>
 
 <script>
 var p = new kernel.WorkerProcess('/busy.wasm', './dist/worker.iife.js');
+p.stdout.on('data', console.log);
 </script>

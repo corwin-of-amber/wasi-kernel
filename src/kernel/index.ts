@@ -1,8 +1,9 @@
-import { WorkerProcess, BareProcess, ExecCore } from './process';
+import { WorkerProcess, BareProcess } from './process';
 
 if (typeof module !== 'undefined' && module.id === '.') {
     var wasm = process.argv[2] || 'dash.wasm';
     new WorkerProcess(wasm, './dist/worker.cjs.js')
+    //new BareProcess(wasm)
         .on('error', (err, wasm)=> {
             console.error(`\nFailed to run '${wasm}';\n`);
             console.error(err);        
@@ -11,4 +12,4 @@ if (typeof module !== 'undefined' && module.id === '.') {
 }
 
 
-export { WorkerProcess, BareProcess, ExecCore }
+export { WorkerProcess, BareProcess }

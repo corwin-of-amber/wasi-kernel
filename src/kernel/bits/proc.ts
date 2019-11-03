@@ -3,7 +3,7 @@ import path from 'path';
 
 import stubs from './stubs';
 import { EventEmitter } from "events";
-import { ExecCore } from "../process";
+import { ExecCore } from "../exec";
 import { Buffer } from 'buffer';
 import { SharedQueue } from './queue';
 
