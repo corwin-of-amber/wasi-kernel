@@ -1,18 +1,18 @@
-import WASI from "@wasmer/wasi";
+import { ExecCore } from "../exec";
 import { Stdin } from "../streams";
 
 
 
 class Tty {
 
-    wasi: WASI;
+    core: ExecCore;
     stdin: Stdin;
     stdin_fl: number;
 
     debug: (...args: any) => void;
 
-    constructor(wasi: WASI, stdin: Stdin) {
-        this.wasi = wasi;
+    constructor(core: ExecCore, stdin: Stdin) {
+        this.core = core;
         this.stdin = stdin;
 
         this.stdin_fl = 4;
@@ -22,8 +22,8 @@ class Tty {
 
     makeTty(fd: number) {
         // Make isatty(fd) return `true`
-        this.wasi.FD_MAP.get(fd).filetype = 2;
-        this.wasi.FD_MAP.get(fd).rights.base &= ~BigInt(0x24);
+        this.core.wasi.FD_MAP.get(fd).filetype = 2;
+        this.core.wasi.FD_MAP.get(fd).rights.base &= ~BigInt(0x24);
     }
 
     // ------------------------------
@@ -40,21 +40,44 @@ class Tty {
     }
 
     fd_fdstat_get(fd: number, bufPtr: number) {
-        var ret = this.wasi.wasiImport.fd_fdstat_get(fd, bufPtr);
+        var ret = this.core.wasi.wasiImport.fd_fdstat_get(fd, bufPtr);
         if (fd === 0) {
             // overwrite: stats FDFLAG u16
-            this.wasi.view.setUint16(bufPtr + 2, this.stdin_fl, true);
+            this.core.wasi.view.setUint16(bufPtr + 2, this.stdin_fl, true);
         }
         return ret;
     }
 
-    get import() {
-        return {
-            fd_fdstat_get: this.fd_fdstat_get.bind(this),
-            fd_fdstat_set_flags: this.fd_fdstat_set_flags.bind(this)
-        };
+    get overrideImport() {
+        return bindAll(this, ['fd_fdstat_get', 'fd_fdstat_set_flags']);
     }
 
+    get import() {
+        return bindAll(this, ['tcgetattr', 'tcsetattr']);
+    }
+
+    // ------------
+    // Termois Part
+    // ------------
+
+    tcgetattr(fd: i32, termios_p: i32) {
+        this.debug(`tcgetattr(${fd}, ${termios_p})`);
+        return 0;
+    }
+
+    tcsetattr(fd: i32, actions: i32, termios_p: i32) {
+        this.debug(`tcsetattr(${fd}, ${actions}, ${termios_p})`);
+        return 0;
+    }
+
+}
+
+
+type i32 = number;
+
+function bindAll(instance: any, methods: string[]) {
+    return methods.reduce((d, m) =>
+        Object.assign(d, {[m]: instance[m].bind(instance)}), {});
 }
 
 

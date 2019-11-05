@@ -13,6 +13,7 @@ import { utf8encode } from './bindings/utf8';
 
 class ExecCore extends EventEmitter {
 
+    opts: ExecCoreOptions
     stdin: Stdin
     wasmFs: WasmFs
     env: Environ
@@ -23,10 +24,13 @@ class ExecCore extends EventEmitter {
     tty: Tty
     proc: Proc
 
+    exited: boolean;
+
     debug: (...args: any) => void
 
     constructor(opts: ExecCoreOptions = {}) {
         super();
+        this.opts = opts;
         
         // Configure envrionment
         this.stdin = new Stdin();
@@ -41,7 +45,20 @@ class ExecCore extends EventEmitter {
         this.argv = ['.'];
 
         this.proc = new Proc(this);
+        this.tty = new Tty(this, this.stdin);
 
+        this.init();
+        
+        // Debug prints
+        // @ts-ignore
+        this.debug = (ROLLUP_IS_NODE) ? /* console is funky in Node worker threads */
+             (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
+           : console.log;
+        this.tty.debug = this.debug;
+        this.proc.debug = this.debug;
+    }
+
+    init() {
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
             args: this.argv,
@@ -54,27 +71,21 @@ class ExecCore extends EventEmitter {
             },
             preopenDirectories: {'/': '/'}
         });
-        
-        // Initialize tty (for streaming stdin)
-        this.tty = new Tty(this.wasi, this.stdin);
+        this.exited = false;
 
-        if (opts.tty) {
-            var fds = (typeof opts.tty == 'number') ? [opts.tty]
-                    : (typeof opts.tty == 'boolean') ? [0,1,2] : opts.tty;
+        // Initialize tty (for streaming stdin)
+        let tty = this.opts.tty;
+        if (tty) {
+            var fds = (typeof tty == 'number') ? [tty]
+                    : (typeof tty == 'boolean') ? [0,1,2] : tty;
             for (let fd of fds)
                 this.tty.makeTty(fd);
         }
-
-        // Debug prints
-        // @ts-ignore
-        this.debug = (ROLLUP_IS_NODE) ?
-             (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
-           : console.log;
-        this.tty.debug = this.debug;
-        this.proc.debug = this.debug;
     }
 
     async start(wasmUri: string, argv?: string[]) {
+        if (this.exited) this.init();
+
         // Fetch Wasm binary and instantiate WebAssembly instance
         var bytes = await this.fetch(wasmUri);
         
@@ -83,8 +94,8 @@ class ExecCore extends EventEmitter {
         if (argv) this.argv.splice(0, Infinity, ...argv);
 
         this.wasm = await WebAssembly.instantiate(bytes, {
-            wasi_unstable: {...this.wasi.wasiImport, ...this.tty.import},
-            env: this.proc.import
+            wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
+            env: {...this.proc.import, ...this.tty.import}
         });
     
         // Start the WebAssembly WASI instance
@@ -95,6 +106,9 @@ class ExecCore extends EventEmitter {
         catch (e) {
             if (e instanceof WASIExitError) return e.code;
             else throw e;
+        }
+        finally {
+            this.exited = true;
         }
     }
 

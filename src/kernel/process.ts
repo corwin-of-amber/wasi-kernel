@@ -37,6 +37,18 @@ abstract class ProcessBase extends EventEmitter {
     }
 
     abstract exec(wasm: string): void;
+
+    waitFor() {
+        var herr: (e: Error) => void, hexit: (ev: {code:number}) => void;
+
+        return new Promise((resolve, reject) => {
+            this.on('error', herr = (e: Error) => reject(e));
+            this.on('exit', hexit = (ev: {code:number}) => resolve(ev));
+        }).finally(() => {
+            this.removeListener('error', herr);
+            this.removeListener('exit', hexit);
+        });
+    }    
 }
 
 
@@ -73,7 +85,8 @@ class WorkerProcess extends ProcessBase {
         if (wasm) this.exec(wasm);
     }
 
-    exec(wasm: string) {
+    exec(wasm: string, argv?: string[]) {
+        if (argv) this.opts.argv = argv;
         this.worker.postMessage({exec: wasm, opts: this.opts});
     }
 }
