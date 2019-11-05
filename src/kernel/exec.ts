@@ -45,7 +45,7 @@ class ExecCore extends EventEmitter {
         this.argv = ['.'];
 
         this.proc = new Proc(this);
-        this.tty = new Tty(this, this.stdin);
+        this.tty = new Tty(this);
 
         this.init();
         
@@ -78,6 +78,7 @@ class ExecCore extends EventEmitter {
         if (tty) {
             var fds = (typeof tty == 'number') ? [tty]
                     : (typeof tty == 'boolean') ? [0,1,2] : tty;
+            this.tty.fds = fds;
             for (let fd of fds)
                 this.tty.makeTty(fd);
         }

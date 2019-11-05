@@ -33,6 +33,7 @@ var names = [
     "sigaction",
     "sigfillset",
     "sigprocmask",
+    "sigsetmask",
     "getppid"
 ]
 

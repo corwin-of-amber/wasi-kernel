@@ -3,7 +3,7 @@ import { SharedQueue, SharedQueueProps } from './bits/queue';
 
 
 
-class Stdin {
+class Stdin extends EventEmitter {
 
     queue: SharedQueue<Uint8Array>;
     wait: Int32Array;
@@ -11,6 +11,7 @@ class Stdin {
     blocking: boolean;
 
     constructor(_from: StdinProps = {}) {
+        super();
         this.queue = SharedQueue.from(_from.queue ||
             {data: new Uint8Array(new SharedArrayBuffer(1024))});
         this.blocking = true;
@@ -31,7 +32,10 @@ class Stdin {
             else if (!this.blocking) throw {errno: 35, code: 'EAGAIN'};
         }
 
-        return this.queue.dequeueSome(length, readBuffer, offset);
+        var readc = this.queue.dequeueSome(length, readBuffer, offset);
+        if (readc > 0)
+            this.emit('data', readBuffer.slice(offset, readc));
+        return readc;
     }
 
     write(writeBuffer: Uint8Array) {

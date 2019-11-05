@@ -81,6 +81,8 @@ int
 int
      sigprocmask(int how, const sigset_t *restrict set,
                           sigset_t *restrict oset);     
+int
+     sigsetmask(int mask);
 
 int
      sigfillset(sigset_t *set);

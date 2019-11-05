@@ -1,6 +1,5 @@
 import { ExecCore } from "./exec";
 import { postMessage, onMessage } from './bindings/workers';
-import { WASIExitError } from "@wasmer/wasi";
 
 
 const core = new ExecCore({tty: true});
@@ -9,6 +8,7 @@ const core = new ExecCore({tty: true});
 postMessage(core.share());
 
 core.on('stream:out',  ev => postMessage(ev));
+core.tty.on('data',    ev => postMessage({event: 'tty:data', arg: ev}));
 core.proc.on('signal', ev => postMessage({event: 'signal', arg: ev}));
 core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
 

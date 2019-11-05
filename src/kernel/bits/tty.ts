@@ -1,21 +1,31 @@
+import { EventEmitter } from 'events';
 import { ExecCore } from "../exec";
-import { Stdin } from "../streams";
 
 
 
-class Tty {
+class Tty extends EventEmitter {
 
-    core: ExecCore;
-    stdin: Stdin;
-    stdin_fl: number;
+    core: ExecCore
+    fds: number[]
+    stdin_fl: number
 
     debug: (...args: any) => void;
 
-    constructor(core: ExecCore, stdin: Stdin) {
+    constructor(core: ExecCore) {
+        super();
         this.core = core;
-        this.stdin = stdin;
+        this.fds = [];
+        this.stdin_fl = 0;
 
-        this.stdin_fl = 4;
+        this.core.on('stream:out', ev => {
+            if (this.fds.includes(ev.fd))
+                this.emit('data', ev.data);
+        });
+
+        this.core.stdin.on('data', data => {
+            if (this.fds.includes(0))
+                this.emit('data', data);  // ECHO
+        });
 
         this.debug = () => {};
     }
@@ -26,6 +36,10 @@ class Tty {
         this.core.wasi.FD_MAP.get(fd).rights.base &= ~BigInt(0x24);
     }
 
+    write(data: any) {
+        this.core.stdin.write(data);
+    }
+
     // ------------------------------
     // Overrides for WASI.wasiImports
     // ------------------------------
@@ -34,7 +48,7 @@ class Tty {
         this.debug(`call set_flags ${flags}\n`);
         if (fd === 0) {
             this.stdin_fl = flags;
-            this.stdin.blocking = !(flags & 0x4);
+            this.core.stdin.blocking = !(flags & 0x4);
         }
         return 0;
     }
