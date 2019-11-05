@@ -100,19 +100,17 @@ class Proc extends EventEmitter {
         return pid;
     }
 
-    __control_fork(v1, v2, call, block) {
-        console.log('recall point', v1, v2, block, call);
-        call = this.funcTable.get(call);
-        console.log(' -- recall point #1 -- ');
+    __control_fork(v1: i32, v2: i32, block: i32) {
+        let impl = this.blockImpl(block);
         try {
-            call(block, v1);
+            impl(v1);
             if (this.onJoin) this.onJoin(null);
         }
         catch (e) {
             if (this.onJoin) this.onJoin(e);
         }
-        console.log(' -- recall point #2 -- ');
-        call(block, v2);
+        this.onJoin = null;
+        impl(v2);
     }
 
     execve(path: i32, argv: i32, envp: i32) {
@@ -130,6 +128,8 @@ class Proc extends EventEmitter {
         return pid;
     }
 
+    // - some helpers
+
     userGetCString(addr: i32) {
         if (addr == 0) return null;
         let mem = Buffer.from(this.core.wasi.memory.buffer);
@@ -146,6 +146,16 @@ class Proc extends EventEmitter {
             addr += 4;
         }
         return l;
+    }
+
+    /**
+     * Used to invoke blocks: returns a function
+     * @param block a C block pointer
+     */
+    blockImpl(block: i32) {
+        let impl = this.funcTable.get(
+            this.core.wasi.view.getUint32(block + 12, true));
+        return (...args: any) => impl(block, ...args);
     }
 
     // ------------

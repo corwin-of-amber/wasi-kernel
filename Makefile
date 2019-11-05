@@ -1,7 +1,7 @@
 
 WASI_CLANG = /opt/wasi-sdk/bin/clang
 
-CFLAGS = -Iinclude -include include/etc.h
+CFLAGS = -Iinclude -include include/etc.h -fblocks
 
 busy.wasm: src/apps/busy.c include/wasi/trap64.c
 	$(WASI_CLANG) $(CFLAGS) $^ -o $@ -Wl,-allow-undefined -Wl,--import-table
