@@ -11,15 +11,16 @@ import { SharedQueue } from './queue';
 
 class Proc extends EventEmitter {
 
-    core: ExecCore;
-    opts: ProcOptions;
+    core: ExecCore
+    opts: ProcOptions
 
-    sigvec: SignalVector;
-    childq: ChildProcessQueue;
+    sigvec: SignalVector
+    childq: ChildProcessQueue
 
-    childset: Set<number>;
+    childset: Set<number>
+    onJoin: (onset: ExecvCall | Error) => void
 
-    funcTable?: WebAssembly.Table;
+    funcTable?: WebAssembly.Table
 
     debug: (...args: any) => void
 
@@ -49,7 +50,8 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['getcwd', 'longjmp', 'vfork', 'wait3',
+            ...bindAll(this, ['getcwd', 'longjmp', 'vfork',
+                              '__control_fork', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction'])
         };
     }
@@ -86,8 +88,39 @@ class Proc extends EventEmitter {
     vfork() {
         var pid = Math.max(0, ...this.childset) + 1;
         this.childset.add(pid);
-        this.emit('spawn', {pid});
+        this.onJoin = (onset: ExecvCall | Error) => {
+            if (onset instanceof ExecvCall) {
+                this.debug('got execve!');
+                let e = onset;
+                console.log(e.prog, e.argv.map(x => x.toString('utf-8')));
+                this.emit('spawn', {pid, execv: e});
+            }
+            else throw onset;
+        };
         return pid;
+    }
+
+    __control_fork(v1, v2, call, block) {
+        console.log('recall point', v1, v2, block, call);
+        call = this.funcTable.get(call);
+        console.log(' -- recall point #1 -- ');
+        try {
+            call(block, v1);
+            if (this.onJoin) this.onJoin(null);
+        }
+        catch (e) {
+            if (this.onJoin) this.onJoin(e);
+        }
+        console.log(' -- recall point #2 -- ');
+        call(block, v2);
+    }
+
+    execve(path: i32, argv: i32, envp: i32) {
+        this.debug(`execv(${path}, ${argv}, ${envp})`);
+        throw new ExecvCall(
+            this.userGetCString(path).toString('utf-8'),
+            this.userGetCStrings(argv),
+            this.userGetCStrings(envp));
     }
 
     wait3(stat_loc: i32, options: i32, rusage: i32) {
@@ -95,6 +128,24 @@ class Proc extends EventEmitter {
         var pid = this.childq.dequeue();
         this.debug(`  -> ${pid}`);
         return pid;
+    }
+
+    userGetCString(addr: i32) {
+        if (addr == 0) return null;
+        let mem = Buffer.from(this.core.wasi.memory.buffer);
+        return mem.slice(addr, mem.indexOf(0, addr));
+    }
+
+    userGetCStrings(addr: i32) {
+        if (addr == 0) return null;
+        let l = [];
+        while(1) {
+            let s = this.core.wasi.view.getUint32(addr, true);
+            if (s === 0) break;
+            l.push(this.userGetCString(s));
+            addr += 4;
+        }
+        return l;
     }
 
     // ------------
@@ -187,6 +238,17 @@ const NSIG = 20;
 
 type ChildProcessQueue = SharedQueue<Uint32Array>;
 
+
+class ExecvCall {
+    prog: string
+    argv: Buffer[]
+    envp: Buffer[]
+    constructor(prog: string, argv: Buffer[], envp: Buffer[]) {
+        this.prog = prog;
+        this.argv = argv;
+        this.envp = envp;
+    }
+}
 
 function bindAll(instance: any, methods: string[]) {
     return methods.reduce((d, m) =>

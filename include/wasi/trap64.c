@@ -51,4 +51,9 @@ __wasi_errno_t __wasi_fd_seek(
 }
 
 
+void __control_invoke(__control_block_t block, int arg) {
+    block(arg);
+}
+
+
 #undef __WASI_SYSCALL_NAME

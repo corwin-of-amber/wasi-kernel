@@ -60,13 +60,14 @@ class WorkerProcess extends ProcessBase {
 
             if (ev.data.event)  this.emit(ev.data.event, ev.data.arg, wasm);
 
+            /*
             if (ev.data.event === 'spawn') {
-                // Emulate subprocess 1 exiting (for testing)
+                console.log('spawn', ev.data.arg);
                 setTimeout(() => {
                     console.log("- wake rainbow -");
                     this.childq.enqueue(ev.data.arg.pid);
                 }, 1000);
-            }
+            }*/
         });
 
         if (wasm) this.exec(wasm);

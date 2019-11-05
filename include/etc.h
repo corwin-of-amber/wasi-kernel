@@ -69,7 +69,8 @@ pid_t
 int
      execve(const char *path, char *const argv[], char *const envp[]);
 
-     
+#include "wasi/control.h"
+
 /* signal.h */
 int
      sigaction(int sig, const struct sigaction *restrict act,
