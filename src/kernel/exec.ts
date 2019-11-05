@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { WASI, WASIExitError } from '@wasmer/wasi';
+import { WASI } from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
 
@@ -66,7 +66,10 @@ class ExecCore extends EventEmitter {
         }
 
         // Debug prints
-        this.debug = (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'));
+        // @ts-ignore
+        this.debug = (ROLLUP_IS_NODE) ?
+             (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
+           : console.log;
         this.tty.debug = this.debug;
         this.proc.debug = this.debug;
     }
@@ -85,7 +88,14 @@ class ExecCore extends EventEmitter {
         });
     
         // Start the WebAssembly WASI instance
-        this.wasi.start(this.wasm.instance);
+        try {
+            this.wasi.start(this.wasm.instance);
+            return 0;
+        }
+        catch (e) {
+            if (e instanceof WASIExitError) return e.code;
+            else throw e;
+        }
     }
 
     async fetch(uri: string) {
@@ -138,6 +148,19 @@ type ExecCoreOptions = {
 };
 
 type Environ = {[k: string]: string};
+
+
+/**
+ * @wasmer/wasi export this class as ES5  :/
+ * This kills instanceof. So redefining it here. -_-
+ */
+export class WASIExitError extends Error {
+    code: number | null;
+    constructor(code: number | null) {
+        super(`WASI Exit error: ${code}`);
+        this.code = code;
+    }
+}
 
 
 export {ExecCore, Environ, ExecCoreOptions}

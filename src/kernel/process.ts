@@ -93,8 +93,8 @@ class BareProcess extends ProcessBase {
         this.core = new ExecCore(this.opts);
         this.core.on('stream:out', ev => process.stdout.write(ev.data));
         try {
-            await this.core.start(wasm, this.opts.argv);
-            this.emit('exit', {code: 0});
+            let exitcode = await this.core.start(wasm, this.opts.argv);
+            this.emit('exit', {code: exitcode});
         }
         catch (err) {
             this.emit('error', err, wasm);

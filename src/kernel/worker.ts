@@ -14,15 +14,14 @@ core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
 
 onMessage(async (ev) => {
     if (ev.data.exec) {
+        let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv;
         try {
-            await core.start(ev.data.exec, ev.data.opts && ev.data.opts.argv);
+            let exitcode = await core.start(wasm, argv);
+            postMessage({event: 'exit', arg: {code: exitcode}});
         }
         catch (e) {
-            const event = (e instanceof WASIExitError) ? 'exit' : 'error';
-            postMessage({event, arg: Object.assign({}, e)});
-            return;
+            postMessage({event: 'error', arg: e});
         }
-        postMessage({event: 'exit', arg: {code: 0}});
     }
 });
 
