@@ -8,6 +8,7 @@
 static const int NSIG = 32;
 static void (* const SIG_DFL)(int) = 0;
 static void (* const SIG_IGN)(int) = 0;
+static void (* const SIG_ERR)(int) = 0;
 
 static const int F_DUPFD = 0;
 static const int AT_FDCWD = 0;
@@ -85,7 +86,13 @@ int
      sigsetmask(int mask);
 
 int
+     sigemptyset(sigset_t *set);
+
+int
      sigfillset(sigset_t *set);
+
+int
+     sigaddset(sigset_t *set, int signo);
 
 /* sys/stat.h */
 

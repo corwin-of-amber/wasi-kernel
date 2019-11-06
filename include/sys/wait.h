@@ -2,6 +2,8 @@
 
 /* (from Darwin) */
 
+#include <sys/resource.h>   /* for struct rusage */
+
 /*
  * Option bits for the third argument of wait4.  WNOHANG causes the
  * wait to not hang if there are no stopped or terminated processes, rather
