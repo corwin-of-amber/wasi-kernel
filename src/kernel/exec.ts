@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { WASI } from '@wasmer/wasi';
+import { WASI } from '@wasmer/wasi/lib';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
 
@@ -51,7 +51,7 @@ class ExecCore extends EventEmitter {
         
         // Debug prints
         // @ts-ignore
-        this.debug = (ROLLUP_IS_NODE) ? /* console is funky in Node worker threads */
+        this.debug = (global.process) ? /* console is funky in Node worker threads */
              (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
            : console.log;
         this.tty.debug = this.debug;
@@ -169,10 +169,10 @@ type Environ = {[k: string]: string};
  * @wasmer/wasi export this class as ES5  :/
  * This kills instanceof. So redefining it here. -_-
  */
-export class WASIExitError extends Error {
+export class WASIExitError /* extends Error*/ {
     code: number | null;
     constructor(code: number | null) {
-        super(`WASI Exit error: ${code}`);
+        //super(`WASI Exit error: ${code}`);
         this.code = code;
     }
 }

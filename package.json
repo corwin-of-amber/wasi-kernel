@@ -39,5 +39,8 @@
     "@wasmer/wasm-transformer": "./node_modules/@wasmer/wasm-transformer/lib/unoptimized/wasm-transformer.esm"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "browserslist": [
+    "Chrome 78"
+  ]
 }
