@@ -37,10 +37,16 @@ var names = [
     "getppid"
 ]
 
-const stubs = {};
-for (let nm of names)
-    stubs[nm] = function() { stubs.debug(`stub for ${nm} [${[...arguments]}]`); }
-
-stubs.debug = () => {};
+const stubs: {
+    debug: (string) => void,
+    [key: string]: (...args: any[]) => void
+} = {
+    debug: (message) => {}
+};
+for (let nm of names) {
+    stubs[nm] = function() {
+        stubs.debug(`stub for ${nm} [${[...arguments]}]`);
+    }
+}
 
 export default stubs
