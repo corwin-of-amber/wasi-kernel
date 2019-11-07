@@ -59,9 +59,9 @@ class WorkerProcess extends ProcessBase {
 
     worker : Worker
 
-    constructor(wasm: string, worker: Worker, opts: ProcessStartupOptions={}) {
+    constructor(wasm: string, workerScript: string, opts: ProcessStartupOptions={}) {
         super(opts);
-        this.worker = worker;
+        this.worker = new Worker(workerScript);
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
             if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);

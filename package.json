@@ -20,7 +20,7 @@
     "@babel/core": "^7.6.4",
     "babelify": "^10.0.0",
     "browserify": "^16.5.0",
-    "parcel": "^1.12.4",
+    "parcel-bundler": "^1.12.4",
     "rollup": "^1.25.2",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-ignore": "^1.0.5",

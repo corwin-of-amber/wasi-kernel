@@ -70,7 +70,7 @@ class Proc extends EventEmitter {
     getcwd(buf: number, sz: number) {
         this.debug('getcwd', buf, sz);
         /* @todo allocate buf if null */
-        let ret = `${this.core.env.CWD || ''}\0`;
+        let ret = `${this.core.env.CWD || ''}` + '\0';
         if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
         let memory_buffer = Buffer.from(this.core.wasi.memory.buffer);
         memory_buffer.write(ret, buf);

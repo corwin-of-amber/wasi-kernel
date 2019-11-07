@@ -1,11 +1,14 @@
-<link href="./src/kernel/worker-browser.ts" id="kernel-worker">
+<link href="./src/kernel/worker.ts" id="kernel-worker">
 <link href="./busy.wasm" id="wasm-app">
 
 <script src="./src/kernel/browser.ts"></script>
 
 <script>
-    var kernelSrc = document.getElementById("kernel-worker").getAttribute("href");
-    var wasmAppUrl = document.getElementById("wasm-app").getAttribute("href");
-    var p = new kernel.WorkerProcess(wasmAppUrl, new Worker(kernelSrc));
+    function getAsset(id) {
+        return document.getElementById(id).getAttribute("href");
+    }
+
+    var p = new kernel.WorkerProcess(
+                    getAsset('wasm-app'), getAsset('kernel-worker'));
     p.stdout.on('data', console.log);
 </script>

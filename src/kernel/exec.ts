@@ -8,6 +8,11 @@ import { Tty } from './bits/tty';
 import { Proc } from './bits/proc';
 
 import { utf8encode } from './bindings/utf8';
+import { isBrowser } from '../infra/arch';
+
+WASI.defaultBindings =
+    isBrowser ? require("@wasmer/wasi/lib/bindings/browser").default
+              : require("@wasmer/wasi/lib/bindings/node").default;
 
 
 
