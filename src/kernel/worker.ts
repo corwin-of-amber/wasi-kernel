@@ -4,9 +4,8 @@ import { postMessage, onMessage } from './bindings/workers';
 
 const core = new ExecCore({tty: true});
 
-
 postMessage(core.share());
-
+    
 core.on('stream:out',  ev => postMessage(ev));
 core.tty.on('data',    ev => postMessage({event: 'tty:data', arg: ev}));
 core.proc.on('signal', ev => postMessage({event: 'signal', arg: ev}));
@@ -26,4 +25,4 @@ onMessage(async (ev) => {
 });
 
 
-export { core };  // useful for debugging
+export { core }   // useful for debugging

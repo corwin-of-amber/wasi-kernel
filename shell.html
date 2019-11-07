@@ -1,6 +1,14 @@
-<script src="./dist/kernel.iife.js"></script>
+<link href="./src/kernel/worker.ts" id="kernel-worker">
+<link href="./busy.wasm" id="wasm-app">
+
+<script src="./src/kernel/browser.ts"></script>
 
 <script>
-var p = new kernel.WorkerProcess('/busy.wasm', './dist/worker.iife.js');
-p.stdout.on('data', console.log);
+    function getAsset(id) {
+        return document.getElementById(id).getAttribute("href");
+    }
+
+    var p = new kernel.WorkerProcess(
+                    getAsset('wasm-app'), getAsset('kernel-worker'));
+    p.stdout.on('data', console.log);
 </script>

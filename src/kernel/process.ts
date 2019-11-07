@@ -8,7 +8,6 @@ import { SharedQueue } from './bits/queue';
 import { ExecCore, ExecCoreOptions } from './exec';
 
 
-
 abstract class ProcessBase extends EventEmitter {
 
     opts: ProcessStartupOptions
@@ -60,10 +59,9 @@ class WorkerProcess extends ProcessBase {
 
     worker : Worker
 
-    constructor(wasm : string, workerJs : string, opts: ProcessStartupOptions={}) {
+    constructor(wasm: string, workerScript: string, opts: ProcessStartupOptions={}) {
         super(opts);
-        
-        this.worker = new Worker(workerJs);
+        this.worker = new Worker(workerScript);
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
             if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);
