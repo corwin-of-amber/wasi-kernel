@@ -6,10 +6,26 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
+#include <termios.h>
+
 
 char buffer[2048];
 
 extern void callback(void (*f)());
+
+int terminal_init(FILE *stream) {
+    struct termios oldtio, newtio;
+
+    /* Turn echoing off and fail if we can't. */
+    if (tcgetattr (fileno (stream), &oldtio) != 0)
+        { }//return -1;
+    newtio = oldtio;
+    newtio.c_lflag &= ~ECHO;
+    if (tcsetattr (fileno (stream), TCSAFLUSH, &newtio) != 0)
+        return -1;
+
+    return 0;
+}
 
 void cmdloop() {
     printf("In cmdloop\n");
@@ -53,6 +69,8 @@ int main(int argc, char *argv[]) {
 
     setvbuf(stdin, 0, _IONBF, 0);  // unbuffered
     printf("isatty(0) = %d\n", isatty(0));
+
+    terminal_init(stdin);
 
     char cwd[256];
     printf("getcwd() = %s\n", getcwd(cwd, sizeof(cwd)));
