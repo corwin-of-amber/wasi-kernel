@@ -4,6 +4,8 @@
 
 #include <signal.h>
 
+typedef struct _IO_FILE FILE;
+
 
 static const int NSIG = 32;
 static void (* const SIG_DFL)(int) = 0;
@@ -14,6 +16,15 @@ static const int F_DUPFD = 0;
 static const int AT_FDCWD = 0;
 
 
+/* stdlib.h */
+
+const char *getprogname();
+
+/* stdio.h */
+
+int
+     fpurge(FILE *stream);
+     
 /* unistd.h */
 
 int
@@ -72,7 +83,13 @@ int
 
 #include "wasi/control.h"
 
+/* string.h */
+
+void
+     strmode(int mode, char *bp);
+
 /* signal.h */
+
 int
      sigaction(int sig, const struct sigaction *restrict act,
                         struct sigaction *restrict oact);
@@ -94,6 +111,9 @@ int
 int
      sigaddset(sigset_t *set, int signo);
 
+int
+     siginterrupt(int sig, int flag);
+
 /* sys/stat.h */
 
 typedef unsigned int mode_t;
@@ -101,7 +121,15 @@ typedef unsigned int mode_t;
 mode_t
      umask(mode_t cmask);
 
+int
+     fchmodat(int fd, const char *path, mode_t mode, int flag);
+     
+#define st_atimespec st_atim
+#define st_ctimespec st_ctim
+#define st_mtimespec st_mtim
 
+#define st_birthtimespec st_atim
+     
 /* sys/resource.h */
 
 typedef unsigned int rlim_t;
@@ -114,3 +142,11 @@ int
 int
      setrlimit(int resource, const struct rlimit *rlp);
 
+/* dirent.h */
+
+#define DT_SOCK 12
+     
+/* time.h */
+     
+void
+     tzset(void);

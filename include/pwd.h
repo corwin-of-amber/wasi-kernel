@@ -1,6 +1,7 @@
 #pragma once
 
 struct passwd {
+    int pw_uid;
     const char *pw_name;
     const char *pw_dir;
 };
