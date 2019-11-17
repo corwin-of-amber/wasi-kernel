@@ -25,4 +25,5 @@ onMessage(async (ev) => {
 });
 
 
-export { core }   // useful for debugging
+// @ts-ignore
+self.core = core;   // useful for debugging

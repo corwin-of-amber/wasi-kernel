@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import assert from 'assert';
 import { WASI } from '@wasmer/wasi/lib';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
@@ -25,6 +26,7 @@ class ExecCore extends EventEmitter {
     argv: string[]
     wasi: WASI
     wasm: WebAssembly.WebAssemblyInstantiatedSource
+    stdioFds: any[]
 
     tty: Tty
     proc: Proc
@@ -41,13 +43,7 @@ class ExecCore extends EventEmitter {
         this.stdin = new Stdin();
         this.wasmFs = new WasmFs();
 
-        this.wasmFs.volume.fds[0].read = this.stdin.read.bind(this.stdin);
-        this.wasmFs.volume.fds[1].write = d => this.emitWrite(1, d);
-        this.wasmFs.volume.fds[2].write = d => this.emitWrite(2, d);
-
         this.populateRootFs();
-        this.env = opts.env || this.defaultEnv();
-        this.argv = ['.'];
 
         this.proc = new Proc(this);
         this.tty = new Tty(this);
@@ -64,6 +60,9 @@ class ExecCore extends EventEmitter {
     }
 
     init() {
+        this.argv = ['.'];
+        this.env = this.initialEnv();
+
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
             args: this.argv,
@@ -74,9 +73,11 @@ class ExecCore extends EventEmitter {
                 fs: this.wasmFs.fs,
                 path: this.proc.path
             },
-            preopenDirectories: {'/': '/'}
+            preopenDirectories: {'/': '/', '.': '.'}
         });
         this.exited = false;
+
+        this.registerStdio();
 
         // Initialize tty (for streaming stdin)
         let tty = this.opts.tty;
@@ -89,15 +90,16 @@ class ExecCore extends EventEmitter {
         }
     }
 
-    async start(wasmUri: string, argv?: string[]) {
+    async start(wasmUri: string, argv?: string[], env?: {}) {
         if (this.exited) this.init();
+
+        if (argv) this.argv.splice(0, Infinity, ...argv);
+        if (env)  Object.assign(this.env, env);
 
         // Fetch Wasm binary and instantiate WebAssembly instance
         var bytes = await this.fetch(wasmUri);
         
         bytes = await transformer.lowerI64Imports(bytes);
-
-        if (argv) this.argv.splice(0, Infinity, ...argv);
 
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
@@ -125,7 +127,7 @@ class ExecCore extends EventEmitter {
         }
         else {
             const fs = require('fs');
-            return fs.readFileSync(uri);
+            return (0||fs.readFileSync)(uri);  // bypass Parcel
         }
     }
 
@@ -146,8 +148,30 @@ class ExecCore extends EventEmitter {
     /**
      * Initial environment variables
      */
+    initialEnv() {
+        return this.opts.env ? Object.assign({}, this.opts.env) 
+                             : this.defaultEnv();
+    }
+
     defaultEnv() {
         return {PATH: '/bin', CWD: '/home'};
+    }
+
+    registerStdio() {
+        var volume = this.wasmFs.volume;
+
+        if (!(volume.fds[0] && volume.fds[1] && volume.fds[2])) {
+            // stdio fds have been closed. re-init
+            volume.releasedFds = [0, 1, 2];
+            const fdErr = volume.openSync("/dev/stderr", "w"),
+                  fdOut = volume.openSync("/dev/stdout", "w"),
+                  fdIn = volume.openSync("/dev/stdin", "r");
+            assert(fdIn == 0 && fdOut == 1 && fdErr == 2);
+        }
+
+        volume.fds[0].read = this.stdin.read.bind(this.stdin);
+        volume.fds[1].write = d => this.emitWrite(1, d);
+        volume.fds[2].write = d => this.emitWrite(2, d);
     }
 
     /**
@@ -158,6 +182,9 @@ class ExecCore extends EventEmitter {
         this.wasmFs.fs.writeFileSync("/home/a", "data");
         this.wasmFs.fs.mkdirSync("/bin");
         this.wasmFs.fs.writeFileSync("/bin/ls", '#!wasi\n{"uri":"busy.wasm"}');
+        this.wasmFs.fs.writeFileSync("/bin/cat", '#!wasi\n{"uri":"busy.wasm"}');
+        this.wasmFs.fs.writeFileSync("/bin/touch", '#!wasi\n{"uri":"busy.wasm"}');
+        this.wasmFs.fs.writeFileSync("/bin/mkdir", '#!wasi\n{"uri":"busy.wasm"}');
     }
 }
 
