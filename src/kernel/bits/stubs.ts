@@ -1,7 +1,5 @@
 var names = [
     "chdir",
-    "getcwd",
-    "longjmp",
     "signal",
     "raise",
     "pipe",
@@ -17,7 +15,6 @@ var names = [
     "fork",
     "getpid",
     "setpgid",
-    "vfork",
     "strsignal",
     "wait",
     "wait3",
@@ -34,7 +31,21 @@ var names = [
     "sigfillset",
     "sigprocmask",
     "sigsetmask",
-    "getppid"
+    "getppid",
+    "tcgetpgrp",
+    "siginterrupt",
+    "gethostname",
+    "tzset",
+    "flockfile",
+    "funlockfile",
+    "getpwuid",
+    "getgrgid",
+    "strmode",
+    "acl_get_file",
+    "acl_free",
+    "acl_get_entry",
+    "getprogname",
+    "vasnprintf"
 ]
 
 const stubs: {

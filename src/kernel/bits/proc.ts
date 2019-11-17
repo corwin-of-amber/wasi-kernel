@@ -58,8 +58,10 @@ class Proc extends EventEmitter {
 
     get path() {
         return {...path,
-            resolve: (dir: string, ...fns: string[]) =>
-                path.resolve(dir || '/', ...fns)
+            resolve: (dir: string, ...paths: string[]) => {
+                if (dir == '.') dir = this.core.env.CWD;
+                return path.resolve(dir || '/', ...paths)
+            }
         };
     }
 
@@ -70,7 +72,7 @@ class Proc extends EventEmitter {
     getcwd(buf: number, sz: number) {
         this.debug('getcwd', buf, sz);
         /* @todo allocate buf if null */
-        let ret = `${this.core.env.CWD || ''}` + '\0';
+        let ret = (this.core.env.CWD || '') + '\0';
         if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
         let memory_buffer = Buffer.from(this.core.wasi.memory.buffer);
         memory_buffer.write(ret, buf);
@@ -90,10 +92,9 @@ class Proc extends EventEmitter {
         this.childset.add(pid);
         this.onJoin = (onset: ExecvCall | Error) => {
             if (onset instanceof ExecvCall) {
-                this.debug('got execve!');
                 let e = onset;
-                console.log(e.prog, e.argv.map(x => x.toString('utf-8')));
-                this.emit('spawn', {pid, execv: e});
+                this.debug('execv: ', e.prog, e.argv.map(x => x.toString('utf-8')));
+                this.emit('spawn', {pid, execv: e, env: this.core.env});
             }
             else throw onset;
         };

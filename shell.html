@@ -9,6 +9,7 @@
     }
 
     var p = new kernel.WorkerProcess(
-                    getAsset('wasm-app'), getAsset('kernel-worker'));
+                    getAsset('wasm-app'), getAsset('kernel-worker'),
+                    {argv: ['ls', '/home/a']});
     p.stdout.on('data', console.log);
 </script>
