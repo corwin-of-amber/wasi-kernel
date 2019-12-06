@@ -4,7 +4,7 @@ import { WASI } from '@wasmer/wasi/lib';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
 
-import { Stdin } from './streams';
+import { SimplexStream } from './streams';
 import { Tty } from './bits/tty';
 import { Proc } from './bits/proc';
 
@@ -20,7 +20,7 @@ WASI.defaultBindings =
 class ExecCore extends EventEmitter {
 
     opts: ExecCoreOptions
-    stdin: Stdin
+    stdin: SimplexStream
     wasmFs: WasmFs
     env: Environ
     argv: string[]
@@ -40,7 +40,7 @@ class ExecCore extends EventEmitter {
         this.opts = opts;
         
         // Configure envrionment
-        this.stdin = new Stdin();
+        this.stdin = new SimplexStream();
         this.wasmFs = new WasmFs();
 
         this.populateRootFs();

@@ -3,25 +3,23 @@ import { SharedQueue, SharedQueueProps } from './bits/queue';
 
 
 
-class Stdin extends EventEmitter {
+class SimplexStream extends EventEmitter {
 
     queue: SharedQueue<Uint8Array>;
     wait: Int32Array;
 
     blocking: boolean;
 
-    constructor(_from: StdinProps = {}) {
+    constructor(_from: SimplexStreamProps = {}) {
         super();
         this.queue = SharedQueue.from(_from.queue ||
             {data: new Uint8Array(new SharedArrayBuffer(1024))});
         this.blocking = true;
     }
 
-    static from(props: StdinProps) { return new Stdin(props); }
+    static from(props: SimplexStreamProps) { return new SimplexStream(props); }
 
-    to(): StdinProps {
-        return {queue: this.queue.to()}
-    }
+    to(): SimplexStreamProps { return {queue: this.queue.to()}; }
 
     read(readBuffer: Uint8Array, offset: number, length: number, position) {
         
@@ -45,7 +43,7 @@ class Stdin extends EventEmitter {
 }
 
 
-type StdinProps = {
+type SimplexStreamProps = {
     queue? : SharedQueueProps<Uint8Array>;
 };
 
@@ -79,5 +77,5 @@ class TransformStreamDuplex extends EventEmitter {
 
 
 
-export {Stdin, TransformStreamDuplex}
+export {SimplexStream, TransformStreamDuplex}
 

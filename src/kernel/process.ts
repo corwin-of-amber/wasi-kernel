@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 
-import { Stdin, TransformStreamDuplex } from './streams';
+import { SimplexStream, TransformStreamDuplex } from './streams';
 import { SignalVector, ChildProcessQueue } from './bits/proc';
 
 import { Worker } from './bindings/workers';
@@ -15,7 +15,7 @@ abstract class ProcessBase extends EventEmitter {
     stdin:  TransformStreamDuplex
     stdout: TransformStreamDuplex
 
-    stdin_raw: Stdin
+    stdin_raw: SimplexStream
     sigvec: SignalVector
     childq: ChildProcessQueue
 
@@ -63,21 +63,12 @@ class WorkerProcess extends ProcessBase {
         super(opts);
         this.worker = new Worker(workerScript);
         this.worker.addEventListener('message', ev => {
-            if (ev.data.stdin)  this.stdin_raw = Stdin.from(ev.data.stdin);
+            if (ev.data.stdin)  this.stdin_raw = SimplexStream.from(ev.data.stdin);
             if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);
             if (ev.data.childq) this.childq = SharedQueue.from(ev.data.childq);
             if (ev.data.fd)     this.stdout.write(ev.data.data);
 
             if (ev.data.event)  this.emit(ev.data.event, ev.data.arg, wasm);
-
-            /*
-            if (ev.data.event === 'spawn') {
-                console.log('spawn', ev.data.arg);
-                setTimeout(() => {
-                    console.log("- wake rainbow -");
-                    this.childq.enqueue(ev.data.arg.pid);
-                }, 1000);
-            }*/
         });
 
         if (wasm) this.exec(wasm);
@@ -99,10 +90,10 @@ class BareProcess extends ProcessBase {
         this.exec(wasm);
     }
 
-    async exec(wasm: string) {
+    async exec(wasm: string, argv?: string[]) {
         const {ExecCore} = await import('./exec');  // on-demand import
 
-        this.core = new ExecCore(this.opts);
+        this.core = new ExecCore({argv, ...this.opts});
         this.core.on('stream:out', ev => process.stdout.write(ev.data));
         try {
             let exitcode = await this.core.start(wasm, this.opts.argv);
@@ -121,4 +112,4 @@ type ProcessStartupOptions = ExecCoreOptions & {
 
 
 
-export { WorkerProcess, BareProcess, ProcessStartupOptions }
+export { ProcessBase, WorkerProcess, BareProcess, ProcessStartupOptions }
