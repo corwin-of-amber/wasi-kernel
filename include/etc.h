@@ -15,6 +15,8 @@ static void (* const SIG_ERR)(int) = 0;
 static const int F_DUPFD = 0;
 static const int AT_FDCWD = 0;
 
+extern int __wasi_dupfd(int fd, int minfd, int cloexec);
+
 
 /* stdlib.h */
 
