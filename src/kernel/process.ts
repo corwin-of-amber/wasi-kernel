@@ -35,7 +35,7 @@ abstract class ProcessBase extends EventEmitter {
         }
     }
 
-    abstract exec(wasm: string): void;
+    abstract exec(wasm: string, argv?: string[]): void;
 
     waitFor() {
         var herr: (e: Error) => void, hexit: (ev: {code:number}) => void;

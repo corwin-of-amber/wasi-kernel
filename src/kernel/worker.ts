@@ -1,3 +1,6 @@
+// build with
+// parcel watch --no-hmr src/kernel/worker.ts
+
 import { ExecCore } from "./exec";
 import { postMessage, onMessage } from './bindings/workers';
 
@@ -13,9 +16,10 @@ core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
 
 onMessage(async (ev) => {
     if (ev.data.exec) {
-        let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv;
+        let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv,
+            env = ev.data.opts && ev.data.opts.env;
         try {
-            let exitcode = await core.start(wasm, argv);
+            let exitcode = await core.start(wasm, argv, env);
             postMessage({event: 'exit', arg: {code: exitcode}});
         }
         catch (e) {

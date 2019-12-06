@@ -50,7 +50,7 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['getcwd', 'longjmp', 'vfork',
+            ...bindAll(this, ['chdir', 'getcwd', '__wasi_dupfd', 'longjmp', 'vfork',
                               '__control_fork', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction'])
         };
@@ -69,6 +69,11 @@ class Proc extends EventEmitter {
     // Environment Part
     // ----------------
 
+    chdir(buf: i32) {
+        var d = this.userGetCString(buf).toString('utf-8');
+        this.core.env.CWD = d;
+    }
+
     getcwd(buf: number, sz: number) {
         this.debug('getcwd', buf, sz);
         /* @todo allocate buf if null */
@@ -77,6 +82,14 @@ class Proc extends EventEmitter {
         let memory_buffer = Buffer.from(this.core.wasi.memory.buffer);
         memory_buffer.write(ret, buf);
         return buf;
+    }
+
+    // ----------
+    // Files Part
+    // ----------
+
+    __wasi_dupfd(fd: i32, minfd: i32, cloexec: boolean) {
+        return minfd; /* oops */
     }
 
     // ------------

@@ -1,5 +1,4 @@
 var names = [
-    "chdir",
     "signal",
     "raise",
     "pipe",
@@ -44,12 +43,11 @@ var names = [
     "acl_get_file",
     "acl_free",
     "acl_get_entry",
-    "getprogname",
-    "vasnprintf"
+    "getprogname"
 ]
 
 const stubs: {
-    debug: (string) => void,
+    debug: (message: string) => void,
     [key: string]: (...args: any[]) => void
 } = {
     debug: (message) => {}

@@ -1,1 +1,1 @@
-export { WorkerProcess, BareProcess } from './process';
+export { ProcessBase as Process, WorkerProcess, BareProcess } from './process';
