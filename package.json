@@ -14,7 +14,8 @@
     "@wasmer/wasm-transformer": "^0.4.5",
     "@wasmer/wasmfs": "^0.4.5",
     "assert": "^2.0.0",
-    "buffer": "^5.4.3"
+    "buffer": "^5.4.3",
+    "memfs": "^3.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.6.4",
