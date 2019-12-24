@@ -50,8 +50,9 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['chdir', 'getcwd', '__wasi_dupfd', 'longjmp', 'vfork',
-                              '__control_fork', 'wait3', 'execve',
+            ...bindAll(this, ['chdir', 'getcwd', '__wasi_dupfd', 
+                              '__control_setjmp', 'longjmp', 'siglongjmp',
+                              'vfork', '__control_fork', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction'])
         };
     }
@@ -63,6 +64,11 @@ class Proc extends EventEmitter {
                 return path.resolve(dir || '/', ...paths)
             }
         };
+    }
+
+    get mem(): DataView {
+        this.core.wasi.refreshMemory();
+        return this.core.wasi.view;
     }
 
     // ----------------
@@ -96,8 +102,32 @@ class Proc extends EventEmitter {
     // Control Part
     // ------------
 
-    longjmp() {
-        throw "longjmp";
+    __control_setjmp(env: i32, block: i32) {
+        this.debug(`__control_setjmp [${env}, ${block}]`);
+        let impl = this.blockImpl(block), val = 0;
+        while (true) {
+            try {
+                impl(val);
+                break;
+            }
+            catch (e) {
+                this.debug(`setjmp caught ${JSON.stringify(e)}`);
+                if (e instanceof Longjmp && e.env == env)
+                    val = e.val;
+                else
+                    throw e;
+            }
+        }
+        this.debug(`__control_setjmp exiting`);
+    }
+
+    longjmp(env: i32, val: i32) {
+        this.debug(`longjmp [${env}] ${val}`);
+        throw new Longjmp(env, val);
+    }
+
+    siglongjmp(env: i32, val: i32) {
+        this.longjmp(env, val);
     }
 
     vfork() {
@@ -137,8 +167,11 @@ class Proc extends EventEmitter {
 
     wait3(stat_loc: i32, options: i32, rusage: i32) {
         this.debug(`wait3(${stat_loc}, ${options}, ${rusage})`);
-        var pid = this.childq.dequeue();
+        var pid = this.childq.dequeue(),
+            exitcode = this.childq.dequeue();
         this.debug(`  -> ${pid}`);
+        if (stat_loc !== 0)
+            this.mem.setUint32(stat_loc, exitcode << 8, true);
         return pid;
     }
 
@@ -154,7 +187,7 @@ class Proc extends EventEmitter {
         if (addr == 0) return null;
         let l = [];
         while(1) {
-            let s = this.core.wasi.view.getUint32(addr, true);
+            let s = this.mem.getUint32(addr, true);
             if (s === 0) break;
             l.push(this.userGetCString(s));
             addr += 4;
@@ -168,7 +201,7 @@ class Proc extends EventEmitter {
      */
     blockImpl(block: i32) {
         let impl = this.funcTable.get(
-            this.core.wasi.view.getUint32(block + 12, true));
+            this.mem.getUint32(block + 12, true));
         return (...args: any) => impl(block, ...args);
     }
 
@@ -186,7 +219,7 @@ class Proc extends EventEmitter {
 
     sigaction(signum: i32, act: i32, oact: i32) {
         this.debug('sigaction', signum, act, oact);
-        var sa_handler = this.core.wasi.view.getUint32(act, true);
+        var sa_handler = this.mem.getUint32(act, true);
         var h = <sighandler>this.funcTable.get(sa_handler);
         this.debug(' -->', sa_handler, h);
         this.sigvec.handlers[signum] = h;
@@ -271,6 +304,15 @@ class ExecvCall {
         this.prog = prog;
         this.argv = argv;
         this.envp = envp;
+    }
+}
+
+class Longjmp {
+    env: i32
+    val: i32
+    constructor(env: i32, val: i32) {
+        this.env = env;
+        this.val = val;
     }
 }
 

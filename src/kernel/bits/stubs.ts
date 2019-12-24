@@ -6,7 +6,6 @@ var names = [
     "dup2",
     "setjmp",
     "sigsetjmp",
-    "siglongjmp",
     "execve",
     "execvp",
     "getpwnam",
