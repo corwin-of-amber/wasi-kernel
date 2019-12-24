@@ -5,6 +5,8 @@ var names = [
     "dup",
     "dup2",
     "setjmp",
+    "sigsetjmp",
+    "siglongjmp",
     "execve",
     "execvp",
     "getpwnam",
@@ -14,6 +16,7 @@ var names = [
     "fork",
     "getpid",
     "setpgid",
+    "issetugid",
     "strsignal",
     "wait",
     "wait3",
@@ -43,7 +46,11 @@ var names = [
     "acl_get_file",
     "acl_free",
     "acl_get_entry",
-    "getprogname"
+    "getprogname",
+    "fchdir",
+    "futimes",
+    "utimes",
+    "system"
 ]
 
 const stubs: {

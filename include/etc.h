@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-
+#include <sys/types.h>
 #include <signal.h>
 
 typedef struct _IO_FILE FILE;
@@ -22,6 +22,8 @@ extern int __wasi_dupfd(int fd, int minfd, int cloexec);
 
 const char *getprogname();
 
+void abort(void);
+
 /* stdio.h */
 
 int
@@ -34,7 +36,14 @@ int
 char *
      getcwd(char *buf, size_t size);
 
+int
+     fchdir(int fildes);
      
+static inline off_t
+     __wasilibc_tell(int fd) {
+          return 0;
+     }
+
 typedef void (*sig_t) (int);
 sig_t
     signal(int sig, sig_t func);
@@ -50,8 +59,6 @@ int
 int
      dup2(int fildes, int fildes2);
 
-typedef unsigned int gid_t;
-
 
 pid_t
      getpgrp(void);
@@ -63,6 +70,8 @@ int
      tcsetpgrp(int fildes, pid_t pgid_id);
 int
      setpgid(pid_t pid, pid_t pgid);
+int
+     issetugid(void);
 pid_t
      getpid(void);
 pid_t
@@ -83,7 +92,7 @@ pid_t
 int
      execve(const char *path, char *const argv[], char *const envp[]);
 
-#include "wasi/control.h"
+/* #include "wasi/control.h" */
 
 /* string.h */
 
@@ -104,14 +113,13 @@ int
 int
      sigsetmask(int mask);
 
-int
-     sigemptyset(sigset_t *set);
+#define __sigbits(signo)	(1 << ((signo) - 1))
 
-int
-     sigfillset(sigset_t *set);
-
-int
-     sigaddset(sigset_t *set, int signo);
+#define	sigaddset(set, signo)	(*(set) |= __sigbits(signo), 0)
+#define	sigdelset(set, signo)	(*(set) &= ~__sigbits(signo), 0)
+#define	sigismember(set, signo)	((*(set) & __sigbits(signo)) != 0)
+#define	sigemptyset(set)    	(*(set) = 0, 0)
+#define	sigfillset(set)		(*(set) = ~(sigset_t)0, 0)
 
 int
      siginterrupt(int sig, int flag);
@@ -123,6 +131,10 @@ typedef unsigned int mode_t;
 mode_t
      umask(mode_t cmask);
 
+int
+     chmod(const char *path, mode_t mode);
+int
+     fchmod(int fildes, mode_t mode);
 int
      fchmodat(int fd, const char *path, mode_t mode, int flag);
      
@@ -152,3 +164,10 @@ int
      
 void
      tzset(void);
+
+/* sys/time.h */
+int
+     futimes(int fildes, const struct timeval times[2]);
+
+int
+     utimes(const char *path, const struct timeval times[2]);
