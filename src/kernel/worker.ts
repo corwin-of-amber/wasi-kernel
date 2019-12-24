@@ -15,6 +15,11 @@ core.proc.on('signal', ev => postMessage({event: 'signal', arg: ev}));
 core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
 
 onMessage(async (ev) => {
+    if (ev.data.upload) {
+        for (let fn in ev.data.upload) {
+            core.wasmFs.fs.writeFileSync(fn, ev.data.upload[fn]);
+        }
+    }
     if (ev.data.exec) {
         let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv,
             env = ev.data.opts && ev.data.opts.env;
