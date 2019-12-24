@@ -22,11 +22,6 @@ class Tty extends EventEmitter {
                 this.emit('data', ev.data);
         });
 
-        this.core.stdin.on('data', data => {
-            if (this.fds.includes(0))
-                this.emit('data', data);  // ECHO
-        });
-
         this.debug = () => {};
     }
 
