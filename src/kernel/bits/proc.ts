@@ -1,11 +1,12 @@
 import assert from 'assert';
 import path from 'path';
+import { EventEmitter } from 'events';
 
 import stubs from './stubs';
-import { EventEmitter } from "events";
-import { ExecCore } from "../exec";
+import { ExecCore } from '../exec';
 import { Buffer } from 'buffer';
 import { SharedQueue } from './queue';
+import { fs } from './fs';
 
 
 
@@ -50,7 +51,7 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['chdir', 'getcwd', '__wasi_dupfd', 
+            ...bindAll(this, ['chdir', 'getcwd', '__wasi_dupfd', 'strmode',
                               '__control_setjmp', 'longjmp', 'siglongjmp',
                               'vfork', '__control_fork', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction'])
@@ -71,6 +72,10 @@ class Proc extends EventEmitter {
         return this.core.wasi.view;
     }
 
+    get membuf(): Buffer {
+        return Buffer.from(this.core.wasi.memory.buffer);        
+    }
+
     // ----------------
     // Environment Part
     // ----------------
@@ -80,13 +85,13 @@ class Proc extends EventEmitter {
         this.core.env.CWD = d;
     }
 
-    getcwd(buf: number, sz: number) {
+    getcwd(buf: i32, sz: i32) {
         this.debug('getcwd', buf, sz);
         /* @todo allocate buf if null */
+        if (buf === 0) throw 'getcwd(0): not implemented';
         let ret = (this.core.env.CWD || '') + '\0';
         if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
-        let memory_buffer = Buffer.from(this.core.wasi.memory.buffer);
-        memory_buffer.write(ret, buf);
+        this.membuf.write(ret, buf);
         return buf;
     }
 
@@ -96,6 +101,11 @@ class Proc extends EventEmitter {
 
     __wasi_dupfd(fd: i32, minfd: i32, cloexec: boolean) {
         return minfd; /* oops */
+    }
+
+    strmode(mode: i32, buf: i32) {
+        let ret = fs.strmode(mode) + '\0';
+        this.membuf.write(ret, buf);
     }
 
     // ------------
