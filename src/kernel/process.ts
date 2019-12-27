@@ -26,6 +26,7 @@ abstract class ProcessBase extends EventEmitter {
         if (typeof TextEncoderStream !== 'undefined') {
             this.stdin = new TransformStreamDuplex(new TextEncoderStream());
             this.stdin.on('data', bytes => this.stdin_raw.write(bytes));
+            this.stdin.on('end', () => this.stdin_raw.end());
 
             this.stdout = new TransformStreamDuplex(new TextDecoderStream());
         }
