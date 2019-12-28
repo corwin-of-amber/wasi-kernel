@@ -63,6 +63,12 @@ class SimplexStream extends EventEmitter {
         this.length = this.pos;
         this.queue.enqueue(0);  // got to enqueue something to notify
     }
+
+    reset() {
+        this.length = -1;
+        this.pos = 0;
+        this.blocking = true;
+    }
 }
 
 

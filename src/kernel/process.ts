@@ -19,21 +19,21 @@ abstract class ProcessBase extends EventEmitter {
     sigvec: SignalVector
     childq: ChildProcessQueue
 
+    exited: boolean
+
     constructor(opts: ProcessStartupOptions) {
         super();
         this.opts = opts;
         
-        if (typeof TextEncoderStream !== 'undefined') {
-            this.stdin = new TransformStreamDuplex(new TextEncoderStream());
-            this.stdin.on('data', bytes => this.stdin_raw.write(bytes));
-            this.stdin.on('end', () => this.stdin_raw.end());
-
+        if (this.setupEncoder()) {
             this.stdout = new TransformStreamDuplex(new TextDecoderStream());
         }
         else if (typeof process !== 'undefined') {
             process.stdin.on('data', buf => this.stdin_raw.write(buf));
             this.stdout = <any>process.stdout;
         }
+
+        this.on('exit', () => this.exited = true);
     }
 
     abstract exec(wasm: string, argv?: string[]): void;
@@ -48,7 +48,24 @@ abstract class ProcessBase extends EventEmitter {
             this.removeListener('error', herr);
             this.removeListener('exit', hexit);
         });
-    }    
+    }
+    
+    reset() {
+        this.exited = false;
+        this.stdin_raw.reset();
+        this.setupEncoder();
+    }
+
+    setupEncoder() {
+        if (typeof TextEncoderStream !== 'undefined') {
+            this.stdin = new TransformStreamDuplex(new TextEncoderStream());
+            this.stdin.on('data', bytes => this.stdin_raw.write(bytes));
+            this.stdin.on('end', () => this.stdin_raw.end());
+            return true;
+        }
+        else return false;
+    }
+
 }
 
 
@@ -76,6 +93,7 @@ class WorkerProcess extends ProcessBase {
     }
 
     exec(wasm: string, argv?: string[]) {
+        if (this.exited) this.reset();
         if (argv) this.opts.argv = argv;
         this.worker.postMessage({exec: wasm, opts: this.opts});
     }
