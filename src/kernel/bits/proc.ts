@@ -233,6 +233,9 @@ class Proc extends EventEmitter {
         var h = <sighandler>this.funcTable.get(sa_handler);
         this.debug(' -->', sa_handler, h);
         this.sigvec.handlers[signum] = h;
+        if (oact != 0) {
+            this.mem.setUint32(oact, 0);
+        }
     }
 
 }

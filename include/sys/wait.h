@@ -46,5 +46,13 @@
 
 
 pid_t
+     wait(int *stat_loc);
+
+pid_t
      wait3(int *stat_loc, int options, struct rusage *rusage);
 
+pid_t
+     wait4(pid_t pid, int *stat_loc, int options, struct rusage *rusage);
+
+pid_t
+     waitpid(pid_t pid, int *stat_loc, int options);

@@ -8,6 +8,7 @@ class Tty extends EventEmitter {
     core: ExecCore
     fds: number[]
     stdin_fl: number
+    termios: {flags: i32[]}
 
     debug: (...args: any) => void;
 
@@ -16,6 +17,9 @@ class Tty extends EventEmitter {
         this.core = core;
         this.fds = [];
         this.stdin_fl = 0;
+        this.termios = {
+            flags: [0o402, 0o3, 0, 0o12]  /* see include/bits/termios.h */
+        };
 
         this.core.on('stream:out', ev => {
             if (this.fds.includes(ev.fd))
@@ -52,7 +56,7 @@ class Tty extends EventEmitter {
         var ret = this.core.wasi.wasiImport.fd_fdstat_get(fd, bufPtr);
         if (fd === 0) {
             // overwrite: stats FDFLAG u16
-            this.core.wasi.view.setUint16(bufPtr + 2, this.stdin_fl, true);
+            this.core.proc.mem.setUint16(bufPtr + 2, this.stdin_fl, true);
         }
         return ret;
     }
@@ -62,7 +66,7 @@ class Tty extends EventEmitter {
     }
 
     get import() {
-        return bindAll(this, ['tcgetattr', 'tcsetattr']);
+        return bindAll(this, ['tcgetattr', 'tcsetattr', 'tgetent']);
     }
 
     // ------------
@@ -71,12 +75,26 @@ class Tty extends EventEmitter {
 
     tcgetattr(fd: i32, termios_p: i32) {
         this.debug(`tcgetattr(${fd}, ${termios_p})`);
+        let mem = this.core.proc.mem;
+        for (let fl of this.termios.flags) {
+            mem.setUint32(termios_p, fl, true);
+            termios_p += 4;
+        }
+        /* speed and character table are skipped :\ */
         return 0;
     }
 
-    tcsetattr(fd: i32, actions: i32, termios_p: i32) {
-        this.debug(`tcsetattr(${fd}, ${actions}, ${termios_p})`);
+    tcsetattr(fd: i32, when: i32, termios_p: i32) {
+        this.debug(`tcsetattr(${fd}, ${when}, ${termios_p})`);
+        let mem = this.core.proc.mem,
+            flags = [0, 1, 2, 3].map(i => mem.getUint32(termios_p + i * 4, true));
+        this.debug(`  ${JSON.stringify(flags)}`);
         return 0;
+    }
+
+    tgetent(bp: i32, name: i32) {
+        this.debug(`tgetent(_, '${this.core.proc.userGetCString(name)})`);
+        return 1;
     }
 
 }

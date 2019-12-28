@@ -22,6 +22,18 @@ extern int __wasi_dupfd(int fd, int minfd, int cloexec);
 
 const char *getprogname();
 
+int
+     mkstemp(char *templat);
+
+int
+     mkstemps(char *templat, int suffixlen);
+
+int
+     mkostemp(char *templat, int oflags);
+
+int
+     mkostemps(char *templat, int suffixlen, int oflags);
+
 void abort(void);
 
 /* stdio.h */
@@ -91,6 +103,10 @@ pid_t
      vfork(void);     
 int
      execve(const char *path, char *const argv[], char *const envp[]);
+int
+     execlp(const char *file, const char *arg0, ...);
+int
+     execvp(const char *file, char *const argv[]);
 
 /* #include "wasi/control.h" */
 

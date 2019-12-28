@@ -52,4 +52,33 @@ __wasi_errno_t __wasi_fd_seek(
 
 
 
+__wasi_errno_t __wasi_path_open$32(
+    __wasi_fd_t dirfd,
+    __wasi_lookupflags_t dirflags,
+    const char *path,
+    size_t path_len,
+    __wasi_oflags_t oflags,
+    uint32_t fs_rights_base,          /* <-- wrapped to i32 */
+    uint32_t fs_rights_inheriting,    /* <-- wrapped to i32 */
+    __wasi_fdflags_t fs_flags,
+    __wasi_fd_t *fd
+) __WASI_SYSCALL_NAME(path_open) __attribute__((__warn_unused_result__));
+
+
+__wasi_errno_t __wasi_path_open(
+    __wasi_fd_t dirfd,
+    __wasi_lookupflags_t dirflags,
+    const char *path,
+    size_t path_len,
+    __wasi_oflags_t oflags,
+    __wasi_rights_t fs_rights_base,
+    __wasi_rights_t fs_rights_inheriting,
+    __wasi_fdflags_t fs_flags,
+    __wasi_fd_t *fd
+) {
+    return __wasi_path_open$32(dirfd, dirflags, path, path_len, oflags,
+            fs_rights_base, fs_rights_inheriting, fs_flags, fd);
+} 
+
+
 #undef __WASI_SYSCALL_NAME
