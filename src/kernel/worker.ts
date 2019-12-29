@@ -9,10 +9,9 @@ const core = new ExecCore({tty: true});
 
 postMessage(core.share());
     
-core.on('stream:out',  ev => postMessage(ev));
-core.tty.on('data',    ev => postMessage({event: 'tty:data', arg: ev}));
-core.proc.on('signal', ev => postMessage({event: 'signal', arg: ev}));
-core.proc.on('spawn',  ev => postMessage({event: 'spawn', arg: ev}));
+core.on('stream:out',   ev => postMessage(ev));
+core.tty.on('data',     ev => postMessage({event: 'tty:data', arg: ev}));
+core.proc.on('syscall', ev => postMessage({event: 'syscall', arg: ev}));
 
 onMessage(async (ev) => {
     if (ev.data.upload) {

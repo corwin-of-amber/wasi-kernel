@@ -31,7 +31,10 @@ class Proc extends EventEmitter {
         this.opts = opts;
 
         this.sigvec = new SignalVector;
-        this.sigvec.on('signal', ev => this.emit('signal', ev));
+        this.sigvec.on('signal', ev => this.emit('syscall', {
+            func: 'signal',
+            data: ev
+        }));
 
         this.childq = new SharedQueue({data: new Uint32Array(new SharedArrayBuffer(4 * 128))});
         this.childset = new Set;
@@ -147,7 +150,10 @@ class Proc extends EventEmitter {
             if (onset instanceof ExecvCall) {
                 let e = onset;
                 this.debug('execv: ', e.prog, e.argv.map(x => x.toString('utf-8')));
-                this.emit('spawn', {pid, execv: e, env: this.core.env});
+                this.emit('syscall', {
+                    func: 'spawn', 
+                    data: {pid, execv: e, env: this.core.env}
+                });
             }
             else throw onset;
         };

@@ -87,8 +87,12 @@ class Tty extends EventEmitter {
     tcsetattr(fd: i32, when: i32, termios_p: i32) {
         this.debug(`tcsetattr(${fd}, ${when}, ${termios_p})`);
         let mem = this.core.proc.mem,
-            flags = [0, 1, 2, 3].map(i => mem.getUint32(termios_p + i * 4, true));
+            flags = range(4).map((_,i) => mem.getUint32(termios_p + i * 4, true));
         this.debug(`  ${JSON.stringify(flags)}`);
+        this.core.proc.emit('syscall', {
+            func: 'ioctl:tty',
+            data: {fd, when, flags}
+        })
         return 0;
     }
 
@@ -105,6 +109,10 @@ type i32 = number;
 function bindAll(instance: any, methods: string[]) {
     return methods.reduce((d, m) =>
         Object.assign(d, {[m]: instance[m].bind(instance)}), {});
+}
+
+function range(n: number) : number[] {
+    return [...Array(n).keys()];
 }
 
 

@@ -49,16 +49,17 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
     }
 
     handleSpawns(parent: Process) {
-        parent.on('spawn', (e) => {
-            if (e.execv) {
-                var argv = e.execv.argv.map(
+        parent.on('syscall', (e) => {
+            if (e.func == 'spawn') {
+                let d = e.data;
+                var argv = d.execv.argv.map(
                     (a: Uint8Array) => Buffer.from(a).toString('utf-8'));
-                var p = this.loader.spawn(e.execv.prog, argv, e.env),
+                var p = this.loader.spawn(d.execv.prog, argv, d.env),
                     exitcode = -1;
                 p.promise
                     .then((ev: {code: number}) => exitcode = ev.code)
                     .finally(() => {
-                        parent.childq.enqueue(e.pid);
+                        parent.childq.enqueue(d.pid);
                         parent.childq.enqueue(exitcode);
                     });
             }
