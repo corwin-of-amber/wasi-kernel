@@ -31,7 +31,9 @@ class ExecCore extends EventEmitter {
     tty: Tty
     proc: Proc
 
-    exited: boolean;
+    exited: boolean
+
+    cached: Map<string, Uint8Array> /* cached binaries */
 
     debug: (...args: any) => void
 
@@ -47,6 +49,7 @@ class ExecCore extends EventEmitter {
 
         this.proc = new Proc(this);
         this.tty = new Tty(this);
+        this.cached = new Map();
 
         this.init();
         
@@ -121,9 +124,13 @@ class ExecCore extends EventEmitter {
     }
 
     async fetch(uri: string) {
-        if (typeof fetch !== 'undefined') {
+        var c = this.cached.get(uri);
+        if (c) return c;
+        else if (typeof fetch !== 'undefined') {
             const response = await fetch(uri);
-            return new Uint8Array(await response.arrayBuffer());
+            c = new Uint8Array(await response.arrayBuffer());
+            this.cached.set(uri, c);
+            return c;
         }
         else {
             const fs = require('fs');
