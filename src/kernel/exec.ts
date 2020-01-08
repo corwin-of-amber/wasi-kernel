@@ -93,8 +93,13 @@ class ExecCore extends EventEmitter {
         }
     }
 
+    reset() {
+        this.stdin.reset();
+        this.init();
+    }
+
     async start(wasmUri: string, argv?: string[], env?: {}) {
-        if (this.exited) this.init();
+        if (this.exited) this.reset();
 
         if (argv) this.argv.splice(0, Infinity, ...argv);
         if (env)  Object.assign(this.env, env);

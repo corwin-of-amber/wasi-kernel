@@ -43,6 +43,9 @@ class SimplexStream extends EventEmitter {
             else if (!this.blocking) throw {errno: 35, code: 'EAGAIN'};
         }
 
+        if (this.length >= 0 && this.pos >= this.length)
+            return 0;
+
         var readc = this.queue.dequeueSome(length, readBuffer, offset);
         if (readc > 0) {
             if (this.length >= 0)
