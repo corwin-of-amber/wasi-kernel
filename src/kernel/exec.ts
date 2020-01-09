@@ -33,7 +33,7 @@ class ExecCore extends EventEmitter {
 
     exited: boolean
 
-    cached: Map<string, Uint8Array> /* cached binaries */
+    cached: Map<string, Promise<Uint8Array>> /* cached binaries */
 
     debug: (...args: any) => void
 
@@ -129,18 +129,16 @@ class ExecCore extends EventEmitter {
     }
 
     async fetch(uri: string) {
-        var c = this.cached.get(uri);
-        if (c) return c;
-        else if (typeof fetch !== 'undefined') {
-            const response = await fetch(uri);
-            c = new Uint8Array(await response.arrayBuffer());
-            this.cached.set(uri, c);
-            return c;
-        }
-        else {
-            const fs = require('fs');
-            return (0||fs.readFileSync)(uri);  // bypass Parcel
-        }
+        return memoize(this.cached, uri, async (uri: string) => {
+            if (typeof fetch !== 'undefined') {
+                const response = await fetch(uri);
+                return new Uint8Array(await response.arrayBuffer());
+            }
+            else {
+                const fs = require('fs');
+                return (0||fs.readFileSync)(uri);  // bypass Parcel
+            }
+        });
     }
 
     /**
@@ -207,6 +205,16 @@ type ExecCoreOptions = {
 };
 
 type Environ = {[k: string]: string};
+
+
+function memoize<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {
+    let v = cache.get(k);
+    if (!v) {
+        v = f(k);
+        cache.set(k, v);
+    }
+    return v;
+}
 
 
 /**
