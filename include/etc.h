@@ -50,7 +50,16 @@ char *
 
 int
      fchdir(int fildes);
-     
+
+int
+     chown(const char *path, uid_t owner, gid_t group);
+int
+     fchown(int fildes, uid_t owner, gid_t group);
+int
+     lchown(const char *path, uid_t owner, gid_t group);
+int
+     fchownat(int fd, const char *path, uid_t owner, gid_t group, int flag);
+
 static inline off_t
      __wasilibc_tell(int fd) {
           return 0;
@@ -153,7 +162,9 @@ int
      fchmod(int fildes, mode_t mode);
 int
      fchmodat(int fd, const char *path, mode_t mode, int flag);
-     
+int
+     lchmod(const char *path, mode_t flags);
+          
 #define st_atimespec st_atim
 #define st_ctimespec st_ctim
 #define st_mtimespec st_mtim
