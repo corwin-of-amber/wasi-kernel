@@ -6,6 +6,8 @@ import { SignalVector, ChildProcessQueue } from './bits/proc';
 import { Worker } from './bindings/workers';
 import { SharedQueue } from './bits/queue';
 import { ExecCore, ExecCoreOptions } from './exec';
+import { SharedVolume } from './services/shared-fs';
+
 
 
 abstract class ProcessBase extends EventEmitter {
@@ -90,6 +92,11 @@ class WorkerProcess extends ProcessBase {
         });
 
         if (wasm) this.exec(wasm);
+    }
+
+    mountFs(volume: SharedVolume) {
+        this.worker.postMessage({volume: volume.to()});
+        return this;
     }
 
     exec(wasm: string, argv?: string[]) {

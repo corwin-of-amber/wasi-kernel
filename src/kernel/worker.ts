@@ -2,6 +2,7 @@
 // parcel watch --no-hmr src/kernel/worker.ts
 
 import { ExecCore } from "./exec";
+import { SharedVolume } from "./services/shared-fs";
 import { postMessage, onMessage } from './bindings/workers';
 
 
@@ -18,6 +19,9 @@ onMessage(async (ev) => {
         for (let fn in ev.data.upload) {
             core.wasmFs.fs.writeFileSync(fn, ev.data.upload[fn]);
         }
+    }
+    if (ev.data.volume) {
+        core.mountFs(SharedVolume.from(ev.data.volume));
     }
     if (ev.data.exec) {
         let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv,

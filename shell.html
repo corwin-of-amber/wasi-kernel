@@ -16,6 +16,7 @@
     var p = new kernel.WorkerProcess(),
         volume = new kernel.SharedVolume();
         
+    p.mountFs(volume);
     p.stdout.on('data', console.log);
     p.exec(getAsset('wasm-app'), ['touch', '/home/b']);
   </script>

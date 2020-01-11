@@ -3,6 +3,7 @@ import assert from 'assert';
 import { WASI } from '@wasmer/wasi/lib';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
+import { createFsFromVolume } from 'memfs';
 
 import { SimplexStream } from './streams';
 import { Tty } from './bits/tty';
@@ -10,6 +11,7 @@ import { Proc } from './bits/proc';
 
 import { utf8encode } from './bindings/utf8';
 import { isBrowser } from '../infra/arch';
+import { SharedVolume } from './services/shared-fs';
 
 WASI.defaultBindings =
     isBrowser ? require("@wasmer/wasi/lib/bindings/browser").default
@@ -49,7 +51,7 @@ class ExecCore extends EventEmitter {
 
         this.proc = new Proc(this);
         this.tty = new Tty(this);
-        this.cached = new Map();
+        this.cached = (opts.cacheBins !== false) ? new Map() : null;
 
         this.init();
         
@@ -129,7 +131,7 @@ class ExecCore extends EventEmitter {
     }
 
     async fetch(uri: string) {
-        return memoize(this.cached, uri, async (uri: string) => {
+        return memoizeMaybe(this.cached, uri, async (uri: string) => {
             if (typeof fetch !== 'undefined') {
                 const response = await fetch(uri);
                 return new Uint8Array(await response.arrayBuffer());
@@ -184,6 +186,12 @@ class ExecCore extends EventEmitter {
         volume.fds[2].write = d => this.emitWrite(2, d);
     }
 
+    mountFs(volume: SharedVolume) {
+        volume.fromJSON(this.wasmFs.volume.toJSON());
+        this.wasmFs.volume = volume;
+        this.wasmFs.fs = createFsFromVolume(volume);
+    }
+
     /**
      * Bootstrapping filesystem contents
      */
@@ -201,7 +209,8 @@ class ExecCore extends EventEmitter {
 type ExecCoreOptions = {
     tty? : boolean | number | [number],
     funcTableSz? : number,
-    env?: Environ
+    env?: Environ,
+    cacheBins?: boolean
 };
 
 type Environ = {[k: string]: string};
@@ -214,6 +223,10 @@ function memoize<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {
         cache.set(k, v);
     }
     return v;
+}
+
+function memoizeMaybe<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {
+    return cache ? memoize(cache, k, f) : f(k);
 }
 
 
