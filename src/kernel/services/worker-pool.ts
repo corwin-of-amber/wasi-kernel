@@ -12,15 +12,13 @@ import { ProcessBase as Process, WorkerProcess } from '../process';
  */
 class WorkerPool extends EventEmitter implements ProcessLoader {
     
-    workerScript: string
     running: Set<WorkerPoolItem>
     free: WorkerPoolItem[]
 
     loader: ProcessLoader
 
-    constructor(workerScript: string) {
+    constructor() {
         super();
-        this.workerScript = workerScript;
         this.running = new Set;
         this.free = [];
         this.loader = this;
@@ -34,7 +32,7 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
         }
         else {
             p = {
-                process: new WorkerProcess(wasm, this.workerScript, {argv, env}),
+                process: new WorkerProcess(wasm, {argv, env}),
                 promise: null
             };
             p.process.on('tty:data', x => this.emit('worker:data', p, x));

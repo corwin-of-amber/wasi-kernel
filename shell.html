@@ -1,15 +1,26 @@
-<link href="./src/kernel/worker.ts" id="kernel-worker">
-<link href="./src/apps/busy.wasm" id="wasm-app">
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WASI Kernel</title>
+    <meta charset="UTF-8" />
+    <!-- <link href="./src/kernel/worker.ts" id="kernel-worker"> -->
+    <link href="./src/apps/busy.wasm" id="wasm-app">
+    <script src="./src/kernel/browser.ts"></script>
+  </head>
 
-<script src="./src/kernel/browser.ts"></script>
-
-<script>
+  <script>
     function getAsset(id) {
         return document.getElementById(id).getAttribute("href");
     }
-
-    var p = new kernel.WorkerProcess(
-                    getAsset('wasm-app'), getAsset('kernel-worker'),
-                    {argv: ['touch', '/home/a']});
+    
+    var p = new kernel.WorkerProcess(),
+        volume = new kernel.SharedVolume();
+        
     p.stdout.on('data', console.log);
-</script>
+    p.exec(getAsset('wasm-app'), ['touch', '/home/b']);
+  </script>
+
+  <body>
+  </body>
+
+</html>
