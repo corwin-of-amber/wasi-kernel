@@ -54,10 +54,11 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['chdir', 'getcwd', '__wasi_dupfd', 'strmode',
+            ...bindAll(this, ['chdir', 'getcwd', 'getprogname', '__wasi_dupfd', 'strmode',
                               '__control_setjmp', 'longjmp', 'siglongjmp',
                               'vfork', '__control_fork', 'wait3', 'execve',
-                              'sigkill', 'sigsuspend', 'sigaction'])
+                              'sigkill', 'sigsuspend', 'sigaction',
+                              'getpagesize'])
         };
     }
 
@@ -96,6 +97,12 @@ class Proc extends EventEmitter {
         if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
         this.membuf.write(ret, buf);
         return buf;
+    }
+
+    getprogname() {
+        var p = this.membuf.length - 10;
+        this.membuf.write("abc\0", p);
+        return p;
     }
 
     // ----------
@@ -242,6 +249,14 @@ class Proc extends EventEmitter {
         if (oact != 0) {
             this.mem.setUint32(oact, 0);
         }
+    }
+
+    // -----------
+    // Memory Part
+    // -----------
+
+    getpagesize() {
+        return 4096;
     }
 
 }

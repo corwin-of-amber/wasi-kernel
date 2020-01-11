@@ -117,7 +117,8 @@ int
 int
      execvp(const char *file, char *const argv[]);
 
-/* #include "wasi/control.h" */
+int
+     getpagesize(void);
 
 /* string.h */
 
