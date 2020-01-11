@@ -1,5 +1,5 @@
 <link href="./src/kernel/worker.ts" id="kernel-worker">
-<link href="./busy.wasm" id="wasm-app">
+<link href="./src/apps/busy.wasm" id="wasm-app">
 
 <script src="./src/kernel/browser.ts"></script>
 
@@ -10,6 +10,6 @@
 
     var p = new kernel.WorkerProcess(
                     getAsset('wasm-app'), getAsset('kernel-worker'),
-                    {argv: ['ls', '/home/a']});
+                    {argv: ['touch', '/home/a']});
     p.stdout.on('data', console.log);
 </script>

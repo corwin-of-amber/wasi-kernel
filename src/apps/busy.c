@@ -55,11 +55,23 @@ int cmd_ls(int argc, char *argv[]) {
     return 0;
 }
 
+int cmd_touch(int argc, char *argv[]) {
+    for (int i = 1; i < argc; i++) {
+        FILE *f = fopen(argv[i], "w");
+        if (f == NULL) {
+            fprintf(stderr, "touch: %s: cannot open for write\n", argv[i]);
+        }
+    }
+
+    return 0;
+}
+
 int dispatch(int argc, char *argv[]) {
     char *cmd;
     for (int i = 0; i < 1; argc++, argv++, i++) {
         cmd = argv[0];
         if (strcmp(cmd, "ls") == 0) return cmd_ls(argc, argv);
+        else if (strcmp(cmd, "touch") == 0) return cmd_touch(argc, argv);
     }
     fprintf(stderr, "no such applet: %s\n", cmd);
     return 1;
