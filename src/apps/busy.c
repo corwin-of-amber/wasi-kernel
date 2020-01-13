@@ -61,6 +61,8 @@ int cmd_touch(int argc, char *argv[]) {
         if (f == NULL) {
             fprintf(stderr, "touch: %s: cannot open for write\n", argv[i]);
         }
+        else fclose(f);
+        printf("touched %s.", argv[i]);
     }
 
     return 0;

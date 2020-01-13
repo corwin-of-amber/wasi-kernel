@@ -190,6 +190,8 @@ class ExecCore extends EventEmitter {
         volume.fromJSON(this.wasmFs.volume.toJSON());
         this.wasmFs.volume = volume;
         this.wasmFs.fs = createFsFromVolume(volume);
+        // must recreate WASI now
+        this.init();
     }
 
     /**
