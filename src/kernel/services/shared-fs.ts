@@ -7,13 +7,15 @@ import assert from 'assert';
 class SharedVolume extends Volume {
 
     dev: BlockDevice
+    root: LinkSharedVolume
     inodes: {[ino: number]: NodeSharedVolume}
 
     constructor(props: SharedVolumeProps = {}) {
         let vol: SharedVolume;
-        class NodeInner extends NodeSharedVolume {
+
+        class NodeInner {
             constructor(ino: number, perm?: number) {
-                super(vol, ino, perm)
+                return new NodeSharedVolume(vol, ino, perm);
             }
         }
 
@@ -24,7 +26,8 @@ class SharedVolume extends Volume {
         this.dev = BlockDevice.from(props.dev);
 
         vol = this;
-        (<NodeInner>this.inodes[this.root.ino]).vol = vol;
+        // root node was created before `vol` was initialized :\
+        this.root.getNode().vol = vol;
     }
 
     static from(props: SharedVolumeProps) {
@@ -44,9 +47,11 @@ class SharedVolume extends Volume {
         return link;
     }
 
-    deleteLink(link: Link) {
+    deleteLink(link: LinkSharedVolume) {
         console.log('deleted link', link.parent.ino, link.getName(), link.ino);
-        return super.deleteLink(link);
+        var parent = link.parent, ret = super.deleteLink(link);
+        parent.push();
+        return ret;
     }
 
     getNodeShared(ino: number) {
@@ -85,25 +90,31 @@ class BlockDevice {
     }
 
     get(blockNo: number) {
-        let offset = blockNo * this.blockSize;
+        var offset = blockNo * this.blockSize;
         return new Uint8Array(this.raw, offset, this.blockSize);
     }
 
-    read(blockNo: number, startIndex: number = 0, encoding?: string) {
-        let buf = this.get(blockNo);
-        if (encoding) {
-            buf = buf.slice(startIndex, buf.indexOf(0, startIndex));
-            return new TextDecoder(encoding).decode(buf);
-        }
-        else {
-            return Uint8Array.from(buf);
-        }
+    readText(blockNo: number, startIndex = 0) {
+        var buf = this.get(blockNo);
+        buf = buf.slice(startIndex, buf.indexOf(0, startIndex));
+        return {buf: new TextDecoder('utf-8').decode(buf),
+                size: buf.length + 1};
     }
 
-    write(blockNo: number, value: string) {
+    read(blockNo: number, startIndex = 0, size?: number) {
+        var buf = this.get(blockNo).slice(startIndex,
+                        (size >= 0) ? startIndex + size : undefined);
+        return {buf, size: buf.length};
+    }
+
+    writeText(blockNo: number, value: string, startIndex = 0) {
         // always utf-8 (also, for some reason TextEncoder doesn't work)
-        var a = Buffer.from(value + '\0', 'utf-8');
-        this.get(blockNo).set(a, 0);
+        return this.write(blockNo, Buffer.from(value + '\0', 'utf-8'), startIndex);
+    }
+
+    write(blockNo: number, value: Uint8Array, startIndex = 0) {
+        this.get(blockNo).set(value, startIndex);
+        return value.length;
     }
 
 }
@@ -138,7 +149,7 @@ class NodeSharedVolume extends Node {
 
     touch() {
         super.touch();
-        console.log('sync inode', this.ino, this);
+        this.push();
     }
   
     del() {
@@ -147,24 +158,38 @@ class NodeSharedVolume extends Node {
 
     push() {
         if (this.vol.dev) {
-            var data = {p: this.perm, m: this.mode};
-            this.vol.dev.write(this.ino, JSON.stringify(data));
-            console.log('+ push node', this.ino, data);
+            var {header} = this._read();  // read first in case there is link data too
+            Object.assign(header, {p: this.perm, m: this.mode});
+            if (this.buf) header.z = this.buf.length;
+            this._write(header, this.buf);
+            console.log('+ push node', this.ino, header);
         }        
     }
 
     pull() {
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
-            var data = this._read();
-            this.perm = data.p;
-            this.mode = data.m;
+            var {header, buf} = this._read();
+            console.log('- pull node', this.ino, header, buf);
+            this.perm = header.p;
+            this.mode = header.m;
+            this.buf = buf ? Buffer.from(buf) : undefined;
         }
     }
 
-    _read(): InodeData {
-        var json = <string>this.vol.dev.read(this.ino, 0, 'utf-8');
-        return JSON.parse(json);
+    _read(): {header: InodeData, buf?: Uint8Array} {
+        var {buf: json, size} = this.vol.dev.readText(this.ino),
+            header = JSON.parse(<string>json),
+            {buf=undefined} = (header.z >= 0) ? 
+                this.vol.dev.read(this.ino, size, header.z) : {};
+        return {header, buf};
+    }
+
+    _write(header: InodeData, buf?: Uint8Array) {
+        var headerJson = JSON.stringify(header),
+            wrc = this.vol.dev.writeText(this.ino, headerJson);
+        if (buf)
+            this.vol.dev.write(this.ino, buf, wrc);
     }
 
 }
@@ -173,18 +198,35 @@ class NodeSharedVolume extends Node {
 class LinkSharedVolume extends Link {
 
     vol: SharedVolume
+    parent: LinkSharedVolume
 
     constructor(vol: SharedVolume, parent: Link, name: string) {
         super(vol, parent, name);
         return <any>new Proxy(this, new ProxyHandlers.LinkHandler());
+        //this.children = new Proxy(this.children,
+        //    new ProxyHandlers.LinkChildren(this));
     }
 
     createChild(name: string, node: Node = this.vol.createNode()): LinkSharedVolume {
         const link = new LinkSharedVolume(this.vol, this, name);
         link.setNode(node);
         this.setChild(name, link);
+        return link;
+    }
+
+    setChild(name: string, link?: Link) {
+        link = super.setChild(name, link);
         this.push();
         return link;
+    }
+
+    deleteChild(link: Link) {
+        super.deleteChild(link);
+        this.push();
+    }
+
+    getNode() {
+        return this.vol.getNodeShared(this.ino);
     }
 
     push() {
@@ -195,9 +237,8 @@ class LinkSharedVolume extends Link {
             }
             var node = this.getNode(),
                 data = {c, p: node.perm, m: node.mode};
-            this.vol.dev.write(this.ino, JSON.stringify(data));
+            this.vol.dev.writeText(this.ino, JSON.stringify(data));
             console.log('+ push link', this.ino, data);
-            //console.log(this.vol.dev.get(this.ino));
         }
     }
 
@@ -205,20 +246,19 @@ class LinkSharedVolume extends Link {
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
             var data = this._read();
-            console.log('+ pull link', this.ino, data);
+            console.log('- pull link', this.ino, data);
             for (let [name, linkData] of Object.entries(data.c)) {
                 if (typeof linkData.ino === 'number') {
                     let inode = this.vol.getNodeShared(linkData.ino);
                     this.children[name] = inode.getLink(this, name);
                 }
             }
-            console.log(this.children);
         }
     }
 
     _read(): LinkInodeData {
-        var json = <string>this.vol.dev.read(this.ino, 0, 'utf-8');
-        return JSON.parse(json);
+        var {buf: json} = this.vol.dev.readText(this.ino);
+        return JSON.parse(<string>json);
     }
 }
 
@@ -226,6 +266,7 @@ class LinkSharedVolume extends Link {
 type InodeData = {
     p: number
     m: number
+    z?: number
 };
 
 type LinkInodeData = InodeData & {
@@ -236,20 +277,11 @@ type LinkInodeData = InodeData & {
 namespace ProxyHandlers {
 
     /**
-     * Proxy handler for Volume.inodes.
+     * Proxy handler for LinkSharedVolume.
      */
-    export class Inodes {
-        set(inodes: {}, key: number, inode: any) {
-            console.log('inodes', key, '<--', inode);
-            inodes[key] = inode;
-            return true;
-        }
-    }
-
     export class LinkHandler {
         get(link: LinkSharedVolume, name: string) {
             if (name === 'children' && link.vol.dev) {
-                console.log('+ get link children', link.vol.dev.read(link.ino));
                 link.pull();
             }
             return link[name];
@@ -257,21 +289,29 @@ namespace ProxyHandlers {
     }
 
     /**
-     * Proxy handler for Link.children.
+     * Proxy handler for LinkSharedVolume.children.
+     * (currently not in use as it seems to make things slower.)
      */
     export class LinkChildren {
-        link: Link;
+        link: LinkSharedVolume;
         constructor(link: LinkSharedVolume) { this.link = link; }
 
-        set(children: {}, name: string, link: Link) {
-            console.log('children', this.link.ino, name, '<--', link);
-            children[name] = link;
-            return true;
+        getOwnPropertyDescriptor(children: {}, name: string) {
+            this.link.pull();
+            return children.hasOwnProperty(name) ? 
+                {configurable: true, enumerable: true} : undefined;
         }
 
         get(children: {}, name: string) {
-            console.log('children', this.link.ino, name, '-->');
+            this.link.pull();
             return children[name];
+        }
+
+        set(children: {}, name: string, value: any) {
+            // this is needed to prevent getOwnPropertyDescriptor from being
+            // called recursively from LinkSharedVolume.pull()
+            children[name] = value;
+            return true;
         }
     }
 
