@@ -1,6 +1,7 @@
 import { Volume } from 'memfs/lib/volume';
 import { Node, Link } from 'memfs/lib/node';
 import assert from 'assert';
+import { threadId } from 'worker_threads';
 
 
 
@@ -9,6 +10,8 @@ class SharedVolume extends Volume {
     dev: BlockDevice
     root: LinkSharedVolume
     inodes: {[ino: number]: NodeSharedVolume}
+
+    debug: (...a: any[]) => void
 
     constructor(props: SharedVolumeProps = {}) {
         let vol: SharedVolume;
@@ -28,6 +31,8 @@ class SharedVolume extends Volume {
         vol = this;
         // root node was created before `vol` was initialized :\
         this.root.getNode().vol = vol;
+
+        this.debug = console.log;
     }
 
     static from(props: SharedVolumeProps) {
@@ -41,17 +46,25 @@ class SharedVolume extends Volume {
     createLink(parent?: LinkSharedVolume, name?: string, isDirectory?: boolean, perm?: number): Link  {
         const link = <LinkSharedVolume>super.createLink(parent, name, isDirectory, perm);
         if (parent) {
-            console.log('+ created link', parent.ino, name, link.ino);
+            this.debug('+ created link', parent.ino, name, link.ino);
         }
         link.push();
         return link;
     }
 
     deleteLink(link: LinkSharedVolume) {
-        console.log('deleted link', link.parent.ino, link.getName(), link.ino);
+        this.debug('deleted link', link.parent.ino, link.getName(), link.ino);
         var parent = link.parent, ret = super.deleteLink(link);
         parent.push();
         return ret;
+    }
+
+    createNode(isDirectory: boolean = false, perm?: number): NodeSharedVolume {
+        if (!this.dev) return <NodeSharedVolume>super.createNode(isDirectory, perm);
+        const node = <NodeSharedVolume>new this.props.Node(this.dev.alloc(), perm);
+        if (isDirectory) node.setIsDirectory();
+        this.inodes[node.ino] = node;
+        return node;    
     }
 
     getNodeShared(ino: number) {
@@ -74,11 +87,15 @@ type SharedVolumeProps = {
 class BlockDevice {
 
     blockSize: number
+    blockCount: number
     raw: ArrayBuffer
+    bitset: Uint8Array;
 
     constructor(props: BlockDeviceProps = {}) {
         this.raw = props.raw || new SharedArrayBuffer(props.size || 1 << 20);
         this.blockSize = props.blockSize || 1 << 10;
+        this.blockCount = this.raw.byteLength / this.blockSize;
+        this.bitset = props.bitset || new Uint8Array(new SharedArrayBuffer(this.blockSize * 4));
     }
 
     static from(props: BlockDeviceProps) {
@@ -86,7 +103,7 @@ class BlockDevice {
     }
 
     to(): BlockDeviceProps {
-        return {raw: this.raw, blockSize: this.blockSize};
+        return {raw: this.raw, blockSize: this.blockSize, bitset: this.bitset};
     }
 
     get(blockNo: number) {
@@ -94,26 +111,48 @@ class BlockDevice {
         return new Uint8Array(this.raw, offset, this.blockSize);
     }
 
-    readText(blockNo: number, startIndex = 0) {
+    isFree(blockNo: number) {
+        return Atomics.load(this.bitset, blockNo) == 0;
+    }
+
+    alloc() {
+        for (let i = 2; i < this.blockSize; i++) {
+            if (Atomics.compareExchange(this.bitset, i, 0, 1) == 0) {
+                return i;
+            }
+        }
+        throw new Error("no space left on device");
+    }
+
+    readText(blockNo: number, offset = 0) {
         var buf = this.get(blockNo);
-        buf = buf.slice(startIndex, buf.indexOf(0, startIndex));
+        buf = buf.slice(offset, buf.indexOf(0, offset));
         return {buf: new TextDecoder('utf-8').decode(buf),
                 size: buf.length + 1};
     }
 
-    read(blockNo: number, startIndex = 0, size?: number) {
-        var buf = this.get(blockNo).slice(startIndex,
-                        (size >= 0) ? startIndex + size : undefined);
+    read(blockNo: number, offset = 0, size?: number) {
+        var buf = this.get(blockNo).slice(offset,
+                        (size >= 0) ? offset + size : undefined);
         return {buf, size: buf.length};
     }
 
-    writeText(blockNo: number, value: string, startIndex = 0) {
-        // always utf-8 (also, for some reason TextEncoder doesn't work)
-        return this.write(blockNo, Buffer.from(value + '\0', 'utf-8'), startIndex);
+    readInto(blockNo: number, offset: number, size: number,
+             buf: Uint8Array, at: number) {
+        var a = this.get(blockNo).subarray(offset, offset + size);
+        buf.set(a, at);
+        return a.length;
     }
 
-    write(blockNo: number, value: Uint8Array, startIndex = 0) {
-        this.get(blockNo).set(value, startIndex);
+    writeText(blockNo: number, value: string, offset = 0) {
+        // always utf-8 (also, for some reason TextEncoder doesn't work)
+        return this.write(blockNo, Buffer.from(value + '\0', 'utf-8'), offset);
+    }
+
+    write(blockNo: number, value: Uint8Array, offset = 0) {
+        if (offset + value.length > this.blockSize)
+            value = value.subarray(0, this.blockSize - offset);
+        this.get(blockNo).set(value, offset);
         return value.length;
     }
 
@@ -122,7 +161,8 @@ class BlockDevice {
 type BlockDeviceProps = {
     blockSize?: number,
     size?: number,
-    raw?: ArrayBuffer
+    raw?: ArrayBuffer,
+    bitset?: Uint8Array;
 };
 
 
@@ -135,7 +175,6 @@ class NodeSharedVolume extends Node {
         super(ino, perm)
         this.vol = vol;
         this._link = null;
-        console.log('created inode', this);
     }
 
     getLink(parent?: LinkSharedVolume, name?: string) {
@@ -158,38 +197,72 @@ class NodeSharedVolume extends Node {
 
     push() {
         if (this.vol.dev) {
-            var {header} = this._read();  // read first in case there is link data too
+            var {header} = this._read(),  // read first in case there is link data too
+                buf = this.buf;
             Object.assign(header, {p: this.perm, m: this.mode});
-            if (this.buf) header.z = this.buf.length;
-            this._write(header, this.buf);
-            console.log('+ push node', this.ino, header);
+            if (buf) header.z = buf.length;
+            this.vol.debug('+ push node', this.ino, header);
+            var wrc = this._write(header, buf);
+            this._writeTrail(buf, wrc);
         }        
     }
 
     pull() {
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
-            var {header, buf} = this._read();
-            console.log('- pull node', this.ino, header, buf);
+            var {header, rdc} = this._read();
+            this.vol.debug('- pull node', this.ino, header, buf);
             this.perm = header.p;
             this.mode = header.m;
-            this.buf = buf ? Buffer.from(buf) : undefined;
+            if (header.z >= 0) {
+                var buf = Buffer.alloc(header.z),
+                    offset = this.vol.dev.readInto(this.ino, rdc, header.z, buf, 0);
+                if (header.n > 0)
+                    this._readTrail(buf, offset);
+                this.buf = buf;
+            }
         }
     }
 
-    _read(): {header: InodeData, buf?: Uint8Array} {
+    _read(): {header: InodeData, rdc?: number} {
         var {buf: json, size} = this.vol.dev.readText(this.ino),
-            header = JSON.parse(<string>json),
-            {buf=undefined} = (header.z >= 0) ? 
-                this.vol.dev.read(this.ino, size, header.z) : {};
-        return {header, buf};
+            header = JSON.parse(json);
+        return {header, rdc: size};
     }
 
     _write(header: InodeData, buf?: Uint8Array) {
-        var headerJson = JSON.stringify(header),
-            wrc = this.vol.dev.writeText(this.ino, headerJson);
-        if (buf)
-            this.vol.dev.write(this.ino, buf, wrc);
+        var wrc = this._writeJson(header || {});
+        if (buf && wrc + buf.length > this.vol.dev.blockSize) {
+            var n = this._next().ino;
+            wrc = this._writeJson(Object.assign({}, header, {n}));
+        }
+        return buf ?
+            this.vol.dev.write(this.ino, buf, wrc) : 0;
+    }
+
+    _writeJson(obj: {}) {
+        return this.vol.dev.writeText(this.ino, JSON.stringify(obj));
+    }
+
+    _writeTrail(buf: Uint8Array, offset: number) {
+        var node: NodeSharedVolume = this;
+        while (buf && offset < buf.length) {
+            buf = buf.subarray(offset);
+            node = node._next();
+            offset = node._write(null, buf);
+            assert(offset > 0);
+        }
+    }
+
+    _readTrail(buf: Uint8Array, offset: number) {
+        var node = this._next(),
+            {header, rdc} = node._read();
+        console.log('read trail', node.ino, header, rdc, offset);
+        this.vol.dev.readInto(node.ino, rdc, buf.length - offset, buf, offset);        
+    }
+
+    _next() {
+        return this.vol.getNodeShared(this.ino + 1);
     }
 
 }
@@ -238,7 +311,7 @@ class LinkSharedVolume extends Link {
             var node = this.getNode(),
                 data = {c, p: node.perm, m: node.mode};
             this.vol.dev.writeText(this.ino, JSON.stringify(data));
-            console.log('+ push link', this.ino, data);
+            this.vol.debug('+ push link', this.ino, data);
         }
     }
 
@@ -246,7 +319,7 @@ class LinkSharedVolume extends Link {
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
             var data = this._read();
-            console.log('- pull link', this.ino, data);
+            this.vol.debug('- pull link', this.ino, data);
             for (let [name, linkData] of Object.entries(data.c)) {
                 if (typeof linkData.ino === 'number') {
                     let inode = this.vol.getNodeShared(linkData.ino);
@@ -267,6 +340,7 @@ type InodeData = {
     p: number
     m: number
     z?: number
+    n?: number
 };
 
 type LinkInodeData = InodeData & {
