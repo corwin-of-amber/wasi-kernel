@@ -1,7 +1,6 @@
 import { Volume } from 'memfs/lib/volume';
 import { Node, Link } from 'memfs/lib/node';
 import assert from 'assert';
-import { threadId } from 'worker_threads';
 
 
 
@@ -32,7 +31,7 @@ class SharedVolume extends Volume {
         // root node was created before `vol` was initialized :\
         this.root.getNode().vol = vol;
 
-        this.debug = console.log;
+        this.debug = () => {}; // console.log;
     }
 
     static from(props: SharedVolumeProps) {
@@ -64,6 +63,7 @@ class SharedVolume extends Volume {
         const node = <NodeSharedVolume>new this.props.Node(this.dev.alloc(), perm);
         if (isDirectory) node.setIsDirectory();
         this.inodes[node.ino] = node;
+        node.push();
         return node;    
     }
 
@@ -74,7 +74,6 @@ class SharedVolume extends Volume {
     _fetchNode(ino: number) {
         var node = <NodeSharedVolume>new this.props.Node(ino);
         this.inodes[ino] = node;
-        node.pull();
         return node;
     }
 }
@@ -91,11 +90,13 @@ class BlockDevice {
     raw: ArrayBuffer
     bitset: Uint8Array;
 
+    cursor: number = 2
+
     constructor(props: BlockDeviceProps = {}) {
         this.raw = props.raw || new SharedArrayBuffer(props.size || 1 << 20);
         this.blockSize = props.blockSize || 1 << 10;
         this.blockCount = this.raw.byteLength / this.blockSize;
-        this.bitset = props.bitset || new Uint8Array(new SharedArrayBuffer(this.blockSize * 4));
+        this.bitset = props.bitset || new Uint8Array(new SharedArrayBuffer(this.blockCount));
     }
 
     static from(props: BlockDeviceProps) {
@@ -116,8 +117,10 @@ class BlockDevice {
     }
 
     alloc() {
-        for (let i = 2; i < this.blockSize; i++) {
-            if (Atomics.compareExchange(this.bitset, i, 0, 1) == 0) {
+        for (let i = this.cursor; i < this.blockCount; i++) {
+            if (this.bitset[i] == 0 && 
+                Atomics.compareExchange(this.bitset, i, 0, 1) == 0) {
+                this.cursor = i;
                 return i;
             }
         }
@@ -200,9 +203,11 @@ class NodeSharedVolume extends Node {
 
     push() {
         if (this.vol.dev) {
-            var {header} = this._read(),  // read first in case there is link data too
+            var blk = this.vol.dev.get(this.ino),
+                header: InodeData = {p: this.perm, m: this.mode, v: this.ver},
                 buf = this.buf;
-            Object.assign(header, {p: this.perm, m: this.mode, v: this.ver});
+            if (blk[0] != 0)
+                header = Object.assign(this._read().header, header);  // in case there is link data too
             if (buf) header.z = buf.length;
             this.vol.debug('+ push node', this.ino, header);
             var wrc = this._write(header, buf);
@@ -240,7 +245,7 @@ class NodeSharedVolume extends Node {
     _write(header: InodeData, buf?: Uint8Array) {
         var wrc = this._writeJson(header || {});
         if (buf && wrc + buf.length > this.vol.dev.blockSize) {
-            var n = this._next().ino;
+            var n = this._next(header).ino;
             wrc = this._writeJson(Object.assign({}, header, {n}));
         }
         return buf ?
@@ -262,14 +267,23 @@ class NodeSharedVolume extends Node {
     }
 
     _readTrail(buf: Uint8Array, offset: number) {
-        var node = this._next(),
-            {header, rdc} = node._read();
-        console.log('read trail', node.ino, header, rdc, offset);
-        this.vol.dev.readInto(node.ino, rdc, buf.length - offset, buf, offset);        
+        var node: NodeSharedVolume = this;
+        //console.warn("read trail", this.ino);
+        while (offset < buf.length) {
+            node = node._next();
+            var {header, rdc} = node._read();
+            rdc = this.vol.dev.readInto(node.ino, rdc, buf.length - offset, buf, offset);
+            assert(rdc > 0);
+            offset += rdc;
+            if (!(header.n >= 0)) break;
+        }
+        assert(offset == buf.length);
     }
 
-    _next() {
-        return this.vol.getNodeShared(this.ino + 1);
+    _next(header?: InodeData) {
+        if (!header) header = this._read().header;
+        return header.n >= 0 ? 
+            this.vol.getNodeShared(header.n) : this.vol.createNode();
     }
 
 }
@@ -334,7 +348,7 @@ class LinkSharedVolume extends Link {
         if (blk[0] != 0) {
             var data = this._read();
             this.vol.debug('- pull link', this.ino, data);
-            for (let [name, linkData] of Object.entries(data.c)) {
+            for (let [name, linkData] of Object.entries(data.c || {})) {
                 if (typeof linkData.ino === 'number') {
                     let inode = this.vol.getNodeShared(linkData.ino);
                     this.children[name] = inode.getLink(this, name);

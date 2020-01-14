@@ -15,10 +15,12 @@
     
     var p = new kernel.WorkerProcess(),
         volume = new kernel.SharedVolume();
-        
+    
+    volume.mkdirSync('/bin');
+
     p.mountFs(volume);
     p.stdout.on('data', console.log);
-    p.exec(getAsset('wasm-app'), ['touch', '/home/b']);
+    p.exec(getAsset('wasm-app'), ['ls', '/home']);
   </script>
 
   <body>
