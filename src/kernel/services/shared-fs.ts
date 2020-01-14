@@ -169,11 +169,13 @@ type BlockDeviceProps = {
 class NodeSharedVolume extends Node {
 
     vol: SharedVolume
+    ver: number
     _link?: LinkSharedVolume
 
     constructor(vol: SharedVolume, ino: number, perm?: number) {
         super(ino, perm)
         this.vol = vol;
+        this.ver = 0;
         this._link = null;
     }
 
@@ -188,6 +190,7 @@ class NodeSharedVolume extends Node {
 
     touch() {
         super.touch();
+        this.ver++;
         this.push();
     }
   
@@ -199,7 +202,7 @@ class NodeSharedVolume extends Node {
         if (this.vol.dev) {
             var {header} = this._read(),  // read first in case there is link data too
                 buf = this.buf;
-            Object.assign(header, {p: this.perm, m: this.mode});
+            Object.assign(header, {p: this.perm, m: this.mode, v: this.ver});
             if (buf) header.z = buf.length;
             this.vol.debug('+ push node', this.ino, header);
             var wrc = this._write(header, buf);
@@ -208,18 +211,22 @@ class NodeSharedVolume extends Node {
     }
 
     pull() {
+        if (!this.vol) return;
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
             var {header, rdc} = this._read();
             this.vol.debug('- pull node', this.ino, header, buf);
             this.perm = header.p;
             this.mode = header.m;
-            if (header.z >= 0) {
-                var buf = Buffer.alloc(header.z),
-                    offset = this.vol.dev.readInto(this.ino, rdc, header.z, buf, 0);
-                if (header.n > 0)
-                    this._readTrail(buf, offset);
-                this.buf = buf;
+            if (this.ver != header.v) {
+                this.ver = header.v;
+                if (header.z >= 0) {
+                    var buf = Buffer.alloc(header.z),
+                        offset = this.vol.dev.readInto(this.ino, rdc, header.z, buf, 0);
+                    if (header.n > 0)
+                        this._readTrail(buf, offset);
+                    this.buf = buf;
+                }
             }
         }
     }
@@ -289,17 +296,24 @@ class LinkSharedVolume extends Link {
 
     setChild(name: string, link?: Link) {
         link = super.setChild(name, link);
-        this.push();
+        this.touch();
         return link;
     }
 
     deleteChild(link: Link) {
         super.deleteChild(link);
+        this.touch();
+    }
+
+    touch() {
+        this.vol.getNodeShared(this.ino).ver++;
         this.push();
     }
 
     getNode() {
-        return this.vol.getNodeShared(this.ino);
+        const node = this.vol.getNodeShared(this.ino);
+        node.pull();
+        return node;
     }
 
     push() {
@@ -309,7 +323,7 @@ class LinkSharedVolume extends Link {
                 c[name] = {ino: link.ino};
             }
             var node = this.getNode(),
-                data = {c, p: node.perm, m: node.mode};
+                data = {c, p: node.perm, m: node.mode, v: node.ver};
             this.vol.dev.writeText(this.ino, JSON.stringify(data));
             this.vol.debug('+ push link', this.ino, data);
         }
@@ -341,6 +355,7 @@ type InodeData = {
     m: number
     z?: number
     n?: number
+    v?: number
 };
 
 type LinkInodeData = InodeData & {
