@@ -1,5 +1,6 @@
 import { Volume } from 'memfs/lib/volume';
 import { Node, Link } from 'memfs/lib/node';
+import { constants } from 'memfs/lib/constants';
 import assert from 'assert';
 
 
@@ -40,6 +41,15 @@ class SharedVolume extends Volume {
 
     to(): SharedVolumeProps {
         return {dev: this.dev.to()};
+    }
+
+    writeBlob(path: string, buf: Uint8Array) {
+        var fd = this.openSync(path, constants.O_CREAT),
+            node = <NodeSharedVolume>this.fds[fd].node,
+            blob = this.dev.allocBlob(buf.length);
+        blob.set(buf, 0);
+        node.setBlob(blob);
+        this.closeSync(fd);
     }
 
     createLink(parent?: LinkSharedVolume, name?: string, isDirectory?: boolean, perm?: number): Link  {
@@ -90,13 +100,15 @@ class BlockDevice {
     raw: ArrayBuffer
     bitset: Uint8Array;
 
-    cursor: number = 2
+    blockCursor: number = 2   // @todo cursors should also be shared
+    blobCursor: number
 
     constructor(props: BlockDeviceProps = {}) {
         this.raw = props.raw || new SharedArrayBuffer(props.size || 1 << 20);
         this.blockSize = props.blockSize || 1 << 10;
         this.blockCount = this.raw.byteLength / this.blockSize;
         this.bitset = props.bitset || new Uint8Array(new SharedArrayBuffer(this.blockCount));
+        this.blobCursor = this.raw.byteLength;
     }
 
     static from(props: BlockDeviceProps) {
@@ -117,14 +129,26 @@ class BlockDevice {
     }
 
     alloc() {
-        for (let i = this.cursor; i < this.blockCount; i++) {
+        let high = this.blobCursor / this.blockSize;
+        for (let i = this.blockCursor; i < high; i++) {
             if (this.bitset[i] == 0 && 
                 Atomics.compareExchange(this.bitset, i, 0, 1) == 0) {
-                this.cursor = i;
+                this.blockCursor = i;
                 return i;
             }
         }
         throw new Error("no space left on device");
+    }
+
+    allocBlob(size: number) {
+        this.blobCursor -= size;
+        return this.getBlob(this.blobCursor, size);
+    }
+
+    getBlob(offset: number, size: number): Buffer {
+        var blob = new Uint8Array(this.raw, offset, size);
+        Object.setPrototypeOf(blob, Buffer.prototype)
+        return blob as Buffer;
     }
 
     readText(blockNo: number, offset = 0) {
@@ -173,12 +197,14 @@ class NodeSharedVolume extends Node {
 
     vol: SharedVolume
     ver: number
+    isBlob: boolean
     _link?: LinkSharedVolume
 
     constructor(vol: SharedVolume, ino: number, perm?: number) {
         super(ino, perm)
         this.vol = vol;
         this.ver = 0;
+        this.isBlob = false;
         this._link = null;
     }
 
@@ -189,6 +215,12 @@ class NodeSharedVolume extends Node {
             this._link.setNode(this);
         }
         return this._link;
+    }
+
+    setBlob(blob: Buffer) {
+        this.buf = blob;
+        this.isBlob = true;
+        this.touch();
     }
 
     touch() {
@@ -209,6 +241,10 @@ class NodeSharedVolume extends Node {
             if (blk[0] != 0)
                 header = Object.assign(this._read().header, header);  // in case there is link data too
             if (buf) header.z = buf.length;
+            if (this.isBlob) {
+                header.blob = [buf.byteOffset];
+                buf = undefined;
+            }
             this.vol.debug('+ push node', this.ino, header);
             var wrc = this._write(header, buf);
             this._writeTrail(buf, wrc);
@@ -226,11 +262,18 @@ class NodeSharedVolume extends Node {
             if (this.ver != header.v) {
                 this.ver = header.v;
                 if (header.z >= 0) {
-                    var buf = Buffer.alloc(header.z),
-                        offset = this.vol.dev.readInto(this.ino, rdc, header.z, buf, 0);
-                    if (header.n > 0)
-                        this._readTrail(buf, offset);
-                    this.buf = buf;
+                    if (header.blob) {
+                        this.buf = this.vol.dev.getBlob(header.blob[0], header.z);
+                        this.isBlob = true;
+                    }
+                    else {
+                        var buf = Buffer.alloc(header.z),
+                            offset = this.vol.dev.readInto(this.ino, rdc, header.z, buf, 0);
+                        if (header.n > 0)
+                            this._readTrail(buf, offset);
+                        this.buf = buf;
+                        this.isBlob = false;
+                    }
                 }
             }
         }
@@ -370,6 +413,7 @@ type InodeData = {
     z?: number
     n?: number
     v?: number
+    blob?: [number]
 };
 
 type LinkInodeData = InodeData & {
