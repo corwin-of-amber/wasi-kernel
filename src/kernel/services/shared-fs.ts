@@ -1,6 +1,5 @@
-import { Volume } from 'memfs/lib/volume';
+import { fs as memfs, Volume } from 'memfs';
 import { Node, Link } from 'memfs/lib/node';
-import { constants } from 'memfs/lib/constants';
 import assert from 'assert';
 
 
@@ -44,7 +43,7 @@ class SharedVolume extends Volume {
     }
 
     writeBlob(path: string, buf: Uint8Array) {
-        var fd = this.openSync(path, constants.O_CREAT),
+        var fd = this.openSync(path, memfs.constants.O_CREAT),
             node = <NodeSharedVolume>this.fds[fd].node,
             blob = this.dev.allocBlob(buf.length);
         blob.set(buf, 0);
@@ -141,6 +140,8 @@ class BlockDevice {
     }
 
     allocBlob(size: number) {
+        if (size > this.blobCursor) throw new Error("no space left on device");
+        // @todo check that blocks in this range are free
         this.blobCursor -= size;
         return this.getBlob(this.blobCursor, size);
     }
@@ -256,7 +257,7 @@ class NodeSharedVolume extends Node {
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
             var {header, rdc} = this._read();
-            this.vol.debug('- pull node', this.ino, header, buf);
+            this.vol.debug('- pull node', this.ino, header);
             this.perm = header.p;
             this.mode = header.m;
             if (this.ver != header.v) {

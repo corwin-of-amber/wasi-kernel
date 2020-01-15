@@ -15,7 +15,7 @@
     "@wasmer/wasmfs": "^0.4.5",
     "assert": "^2.0.0",
     "buffer": "^5.4.3",
-    "memfs": "git+https://github.com/torch2424/memfs.git#wasmfs-fixes"
+    "memfs": "^3.0.4"
   },
   "devDependencies": {
     "@types/node": "^13.1.1",
@@ -23,10 +23,6 @@
     "source-map-support": "^0.5.13",
     "ts-node": "^8.4.1",
     "typescript": "^3.6.4"
-  },
-  "alias": {
-    "@wasmer/wasmfs": "./node_modules/@wasmer/wasmfs/lib/index.cjs",
-    "@wasmer/wasm-transformer": "./node_modules/@wasmer/wasm-transformer/lib/unoptimized/wasm-transformer.esm"
   },
   "author": "",
   "license": "ISC",
