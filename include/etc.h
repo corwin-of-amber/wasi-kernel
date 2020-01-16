@@ -170,6 +170,13 @@ int
 int
      siginterrupt(int sig, int flag);
 
+struct sigaltstack { uint32_t ss_flags; void *ss_sp; uint32_t ss_size; };
+
+int
+     sigaltstack(const stack_t *restrict ss, stack_t *restrict oss);
+
+#   define SA_RESETHAND 1
+
 /* sys/stat.h */
 
 typedef unsigned int mode_t;
