@@ -7,7 +7,7 @@ import { ExecCore } from '../exec';
 import { Buffer } from 'buffer';
 import { SharedQueue } from './queue';
 import { fs } from './fs';
-import * as constants from '@wasmer/wasi/src/constants';
+import * as constants from '@wasmer/wasi/lib/constants';
 
 
 
@@ -46,12 +46,16 @@ class Proc extends EventEmitter {
     }
 
     init() {
-        this.core.wasi.FD_MAP.set(AT_FDCWD, {
-            path: '.',
-            real: AT_FDCWD,
-            rights: RIGHTS_ALL,  // uhm
-            filetype: constants.WASI_FILETYPE_DIRECTORY
-        });
+        const newfd = [...this.core.wasi.FD_MAP.keys()].reverse()[0] + 1,
+              fdcwd = {
+                  real: newfd,
+                  rights: RIGHTS_ALL,  // uhm
+                  filetype: constants.WASI_FILETYPE_DIRECTORY,
+                  path: '.',
+                  fakePath: '.'
+              };
+        this.core.wasi.FD_MAP.set(AT_FDCWD, fdcwd);
+        this.core.wasi.FD_MAP.set(newfd, fdcwd);  // last key inserted must be the largest
     }
 
     get import() {
