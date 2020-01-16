@@ -97,17 +97,21 @@ class BlockDevice {
     blockSize: number
     blockCount: number
     raw: ArrayBuffer
-    bitset: Uint8Array;
+    bitset: Uint8Array
 
-    blockCursor: number = 2   // @todo cursors should also be shared
-    blobCursor: number
+    cursors: Uint32Array
 
     constructor(props: BlockDeviceProps = {}) {
         this.raw = props.raw || new SharedArrayBuffer(props.size || 1 << 20);
         this.blockSize = props.blockSize || 1 << 10;
         this.blockCount = this.raw.byteLength / this.blockSize;
         this.bitset = props.bitset || new Uint8Array(new SharedArrayBuffer(this.blockCount));
-        this.blobCursor = this.raw.byteLength;
+        this.cursors = props.cursors || new Uint32Array(new SharedArrayBuffer(3 * 4));
+        if (!props.cursors) {
+            this.blockCursor = 2;
+            this.boundaryCursor = 2;
+            this.blobCursor = this.raw.byteLength;
+        }
     }
 
     static from(props: BlockDeviceProps) {
@@ -115,7 +119,8 @@ class BlockDevice {
     }
 
     to(): BlockDeviceProps {
-        return {raw: this.raw, blockSize: this.blockSize, bitset: this.bitset};
+        return {raw: this.raw, blockSize: this.blockSize, bitset: this.bitset,
+                cursors: this.cursors};
     }
 
     get(blockNo: number) {
@@ -127,12 +132,22 @@ class BlockDevice {
         return Atomics.load(this.bitset, blockNo) == 0;
     }
 
+    // Cursor accessors
+    // (not atomic, for performance :\)
+    get blockCursor()              { return this.cursors[0]; }
+    set blockCursor(i: number)     { this.cursors[0] = i; }
+    get boundaryCursor()           { return this.cursors[1]; }
+    set boundaryCursor(i: number)  { this.cursors[1] = i; }
+    get blobCursor()               { return this.cursors[2]; }
+    set blobCursor(i: number)      { this.cursors[2] = i; }
+
     alloc() {
         let high = this.blobCursor / this.blockSize;
         for (let i = this.blockCursor; i < high; i++) {
             if (this.bitset[i] == 0 && 
                 Atomics.compareExchange(this.bitset, i, 0, 1) == 0) {
                 this.blockCursor = i;
+                this.boundaryCursor = Math.max(this.boundaryCursor, i + 1);
                 return i;
             }
         }
@@ -140,10 +155,11 @@ class BlockDevice {
     }
 
     allocBlob(size: number) {
-        if (size > this.blobCursor) throw new Error("no space left on device");
-        // @todo check that blocks in this range are free
-        this.blobCursor -= size;
-        return this.getBlob(this.blobCursor, size);
+        var offset = this.blobCursor - size;
+        if (offset < this.boundaryCursor * this.blockSize)
+            throw new Error("no space left on device");
+        this.blobCursor = offset;
+        return this.getBlob(offset, size);
     }
 
     getBlob(offset: number, size: number): Buffer {
@@ -187,10 +203,11 @@ class BlockDevice {
 }
 
 type BlockDeviceProps = {
-    blockSize?: number,
-    size?: number,
-    raw?: ArrayBuffer,
-    bitset?: Uint8Array;
+    blockSize?: number
+    size?: number
+    raw?: ArrayBuffer
+    bitset?: Uint8Array
+    cursors?: Uint32Array
 };
 
 
@@ -337,6 +354,7 @@ class LinkSharedVolume extends Link {
 
     vol: SharedVolume
     parent: LinkSharedVolume
+    node: NodeSharedVolume
 
     constructor(vol: SharedVolume, parent: Link, name: string) {
         super(vol, parent, name);
@@ -369,7 +387,8 @@ class LinkSharedVolume extends Link {
     }
 
     getNode() {
-        const node = this.vol.getNodeShared(this.ino);
+        const node = this.node;
+        assert(node, 'LinkSharedVolume.node is unset');
         node.pull();
         return node;
     }
