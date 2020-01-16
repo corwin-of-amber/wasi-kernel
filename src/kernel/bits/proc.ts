@@ -7,6 +7,7 @@ import { ExecCore } from '../exec';
 import { Buffer } from 'buffer';
 import { SharedQueue } from './queue';
 import { fs } from './fs';
+import * as constants from '@wasmer/wasi/src/constants';
 
 
 
@@ -20,6 +21,8 @@ class Proc extends EventEmitter {
 
     childset: Set<number>
     onJoin: (onset: ExecvCall | Error) => void
+
+    pending: (() => void)[]
 
     funcTable?: WebAssembly.Table
 
@@ -38,6 +41,17 @@ class Proc extends EventEmitter {
 
         this.childq = new SharedQueue({data: new Uint32Array(new SharedArrayBuffer(4 * 128))});
         this.childset = new Set;
+
+        this.pending = [];
+    }
+
+    init() {
+        this.core.wasi.FD_MAP.set(AT_FDCWD, {
+            path: '.',
+            real: AT_FDCWD,
+            rights: RIGHTS_ALL,  // uhm
+            filetype: constants.WASI_FILETYPE_DIRECTORY
+        });
     }
 
     get import() {
@@ -54,12 +68,16 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['chdir', 'getcwd', 'getprogname', '__wasi_dupfd', 'strmode',
+            ...bindAll(this, ['chdir', 'getcwd', 'geteuid', 'strmode',
                               '__control_setjmp', 'longjmp', 'siglongjmp',
                               'vfork', '__control_fork', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction',
                               'getpagesize'])
         };
+    }
+
+    get extlib() {
+        return bindAll(this, ['progname_get', 'sorry', 'dupfd']);
     }
 
     get path() {
@@ -78,6 +96,13 @@ class Proc extends EventEmitter {
 
     get membuf(): Buffer {
         return Buffer.from(this.core.wasi.memory.buffer);        
+    }
+
+    /**
+     * This is a nasty hack and so deserves an apology.
+     */
+    sorry() {
+        for (var f: () => void; f = this.pending.pop(); f());
     }
 
     // ----------------
@@ -99,17 +124,24 @@ class Proc extends EventEmitter {
         return buf;
     }
 
-    getprogname() {
-        var p = this.membuf.length - 10;
-        this.membuf.write("abc\0", p);
-        return p;
+    progname_get(pbuf: number) {
+        var ret = this.core.argv[0] + '\0';
+        this.pending.push(() => {
+            let buf = this.mem.getUint32(pbuf, true);
+            this.membuf.write(ret, buf);
+        });
+        return ret.length;
+    }
+
+    geteuid() {
+        return 0;
     }
 
     // ----------
     // Files Part
     // ----------
 
-    __wasi_dupfd(fd: i32, minfd: i32, cloexec: boolean) {
+    dupfd(fd: i32, minfd: i32, cloexec: boolean) {
         return minfd; /* oops */
     }
 
@@ -260,6 +292,13 @@ class Proc extends EventEmitter {
     }
 
 }
+
+const AT_FDCWD = -100;
+
+const RIGHTS_ALL = {
+    base: constants.RIGHTS_ALL,
+    inheriting: constants.RIGHTS_ALL
+};
 
 type ProcOptions = {
     funcTableSz? : number

@@ -45,6 +45,8 @@ var names = [
     "setpwent",
     "endpwent",
     "getgrgid",
+    "setreuid",
+    "setregid",
     "strmode",
     "acl_get_file",
     "acl_free",
@@ -65,6 +67,7 @@ var names = [
     "mkstemps",
     "mkostemp",
     "mkostemps",
+    "settimeofday",
     // curses
     "tgetent",
     "tgetflag",

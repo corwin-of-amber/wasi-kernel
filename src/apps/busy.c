@@ -88,6 +88,8 @@ int main(int argc, char *argv[]) {
     setvbuf(stdin, 0, _IONBF, 0);  // unbuffered
     printf("isatty(0) = %d\n", isatty(0));
 
+    printf("progname = '%s'\n", getprogname());
+
     terminal_init(stdin);
 
     char cwd[256];

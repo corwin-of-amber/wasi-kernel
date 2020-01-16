@@ -4,6 +4,10 @@
 #include <sys/types.h>
 #include <signal.h>
 
+#define __WASI_EXTERNAL_NAME(name) \
+    __attribute__((__import_module__("wasi_ext"), __import_name__(#name)))
+
+
 typedef struct _IO_FILE FILE;
 
 
@@ -13,14 +17,26 @@ static void (* const SIG_IGN)(int) = 0;
 static void (* const SIG_ERR)(int) = 0;
 
 static const int F_DUPFD = 0;
-static const int AT_FDCWD = 0;
+#define AT_FDCWD (-100)
 
-extern int __wasi_dupfd(int fd, int minfd, int cloexec);
+extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASI_EXTERNAL_NAME(dupfd);
 
+extern int __wasi_progname_get() __WASI_EXTERNAL_NAME(progname_get);
+extern void __wasi_sorry(void *) __WASI_EXTERNAL_NAME(sorry);
+
+void *malloc(size_t);
+
+#define __wasi_allocated(T,get,sz) \
+     static T *buf = 0; if (!buf) get(buf = malloc(sz())); return buf;
 
 /* stdlib.h */
 
-const char *getprogname();
+static inline const char *getprogname()
+{ 
+     static char *buf = 0;
+     if (!buf) __wasi_sorry(buf = malloc(__wasi_progname_get(&buf)));
+     return buf;
+}
 
 int
      mkstemp(char *templat);
@@ -105,6 +121,10 @@ uid_t
      geteuid(void);
 gid_t
      getegid(void);
+int
+     setreuid(uid_t ruid, uid_t euid);
+int
+     setregid(gid_t rgid, gid_t egid);
 
 pid_t
      fork(void);
@@ -194,8 +214,15 @@ void
      tzset(void);
 
 /* sys/time.h */
+
+struct timezone;
+
+int
+     gettimeofday(struct timeval *restrict tp, void *restrict tzp);
+int
+     settimeofday(const struct timeval *tp, const struct timezone *tzp);
+
 int
      futimes(int fildes, const struct timeval times[2]);
-
 int
      utimes(const char *path, const struct timeval times[2]);

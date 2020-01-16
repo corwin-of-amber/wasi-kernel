@@ -83,6 +83,7 @@ class ExecCore extends EventEmitter {
         this.exited = false;
 
         this.registerStdio();
+        this.proc.init();
 
         // Initialize tty (for streaming stdin)
         let tty = this.opts.tty;
@@ -113,6 +114,7 @@ class ExecCore extends EventEmitter {
 
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
+            wasi_ext: this.proc.extlib,
             env: {...this.proc.import, ...this.tty.import}
         });
     
@@ -199,12 +201,7 @@ class ExecCore extends EventEmitter {
      */
     populateRootFs() {
         this.wasmFs.fs.mkdirSync("/home");
-        this.wasmFs.fs.writeFileSync("/home/a", "data");
         this.wasmFs.fs.mkdirSync("/bin");
-        this.wasmFs.fs.writeFileSync("/bin/ls", '#!wasi\n{"uri":"busy.wasm"}');
-        this.wasmFs.fs.writeFileSync("/bin/cat", '#!wasi\n{"uri":"busy.wasm"}');
-        this.wasmFs.fs.writeFileSync("/bin/touch", '#!wasi\n{"uri":"busy.wasm"}');
-        this.wasmFs.fs.writeFileSync("/bin/mkdir", '#!wasi\n{"uri":"busy.wasm"}');
     }
 }
 
