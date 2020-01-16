@@ -12,6 +12,11 @@
     function getAsset(id) {
         return document.getElementById(id).getAttribute("href");
     }
+
+    function print(d) {
+      console.log(d);
+      document.getElementById('stdout').innerHTML += d;
+    }
     
     var p = new kernel.WorkerProcess(),
         volume = new kernel.SharedVolume();
@@ -19,11 +24,12 @@
     volume.mkdirSync('/bin');
 
     p.mountFs(volume);
-    p.stdout.on('data', console.log);
+    p.stdout.on('data', print);
     p.exec(getAsset('wasm-app'), ['ls', '/home']);
   </script>
 
   <body>
+    <pre id="stdout"></pre>
   </body>
 
 </html>
