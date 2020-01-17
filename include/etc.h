@@ -11,32 +11,39 @@
 typedef struct _IO_FILE FILE;
 
 
+#ifndef NSIG
 static const int NSIG = 32;
 static void (* const SIG_DFL)(int) = 0;
 static void (* const SIG_IGN)(int) = 0;
 static void (* const SIG_ERR)(int) = 0;
+#endif
 
 static const int F_DUPFD = 0;
 #define AT_FDCWD (-100)
 
 extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASI_EXTERNAL_NAME(dupfd);
 
-extern int __wasi_progname_get() __WASI_EXTERNAL_NAME(progname_get);
 extern void __wasi_sorry(void *) __WASI_EXTERNAL_NAME(sorry);
 
 void *malloc(size_t);
 
-#define __wasi_allocated(T,get,sz) \
-     static T *buf = 0; if (!buf) get(buf = malloc(sz())); return buf;
+#ifndef __wasi__
+#define restrict
+#endif
 
 /* stdlib.h */
 
-static inline const char *getprogname()
-{ 
+extern int __wasi_progname_get(char **pbuf) __WASI_EXTERNAL_NAME(progname_get);
+
+static inline const char *getprogname() {
      static char *buf = 0;
-     if (!buf) __wasi_sorry(buf = malloc(__wasi_progname_get(&buf)));
+     if (!buf) __wasi_sorry(buf = (char*)malloc(__wasi_progname_get(&buf)));
      return buf;
 }
+
+char *
+     realpath(const char *restrict file_name,
+              char *restrict resolved_name);
 
 int
      mkstemp(char *templat);
@@ -53,6 +60,13 @@ int
 void abort(void);
 
 /* stdio.h */
+
+void
+     flockfile(FILE *file);
+int
+     ftrylockfile(FILE *file);
+void
+     funlockfile(FILE *file);
 
 int
      fpurge(FILE *stream);
@@ -93,6 +107,8 @@ int
      
 int
      pipe(int fildes[2]);
+int
+     dup(int fildes);
 int
      dup2(int fildes, int fildes2);
 
@@ -140,6 +156,17 @@ int
 int
      getpagesize(void);
 
+char *
+     ttyname(int fd);
+
+extern int __wasi_login_get(char **pbuf) __WASI_EXTERNAL_NAME(login_get);
+
+static inline char *getlogin() {
+     static char *buf = 0;
+     if (!buf) __wasi_sorry(buf = (char*)malloc(__wasi_login_get(&buf)));
+     return buf;
+}
+
 /* string.h */
 
 void
@@ -169,6 +196,8 @@ int
 
 int
      siginterrupt(int sig, int flag);
+
+void (*bsd_signal(int, void (*)(int)))(int);
 
 struct sigaltstack { uint32_t ss_flags; void *ss_sp; uint32_t ss_size; };
 
@@ -233,3 +262,11 @@ int
      futimes(int fildes, const struct timeval times[2]);
 int
      utimes(const char *path, const struct timeval times[2]);
+
+/* fcntl.h */
+
+#define F_RDLCK 0
+#define F_WRLCK 1
+#define F_UNLCK 2
+
+#define F_SETLKW 0

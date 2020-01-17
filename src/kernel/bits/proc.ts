@@ -81,7 +81,7 @@ class Proc extends EventEmitter {
     }
 
     get extlib() {
-        return bindAll(this, ['progname_get', 'sorry', 'dupfd']);
+        return bindAll(this, ['sorry', 'dupfd', 'progname_get', 'login_get']);
     }
 
     get path() {
@@ -130,11 +130,12 @@ class Proc extends EventEmitter {
 
     progname_get(pbuf: number) {
         var ret = this.core.argv[0] + '\0';
-        this.pending.push(() => {
-            let buf = this.mem.getUint32(pbuf, true);
-            this.membuf.write(ret, buf);
-        });
-        return ret.length;
+        return this.userCStringMalloc(ret, pbuf);
+    }
+
+    login_get(pbuf: number) {
+        var ret = 'user' + '\0';
+        return this.userCStringMalloc(ret, pbuf);
     }
 
     geteuid() {
@@ -252,6 +253,14 @@ class Proc extends EventEmitter {
             addr += 4;
         }
         return l;
+    }
+
+    userCStringMalloc(s: string, pbuf: i32) {
+        this.pending.push(() => {
+            let buf = this.mem.getUint32(pbuf, true);
+            this.membuf.write(s, buf);
+        });
+        return s.length;
     }
 
     /**
