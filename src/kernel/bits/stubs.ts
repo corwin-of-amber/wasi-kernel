@@ -18,7 +18,6 @@ var names = [
     "setpgid",
     "issetugid",
     "strsignal",
-    "wait",
     "wait4",
     "waitpid",
     "sigsuspend",

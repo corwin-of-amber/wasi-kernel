@@ -51,9 +51,9 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
         parent.on('syscall', (e) => {
             if (e.func == 'spawn') {
                 let d = e.data;
-                var argv = d.execv.argv.map(
-                    (a: Uint8Array) => Buffer.from(a).toString('utf-8'));
-                var p = this.loader.spawn(d.execv.prog, argv, d.env),
+                var argv = this.parseArgv(d.execv.argv),
+                    env = Object.assign(d.env, this.parseEnviron(d.execv.envp));
+                var p = this.loader.spawn(d.execv.prog, argv, env),
                     exitcode = -1;
                 p.promise
                     .then((ev: {code: number}) => exitcode = ev.code)
@@ -63,6 +63,22 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
                     });
             }
         });
+    }
+
+    parseArgv(argv: Uint8Array[]) {
+        return argv.map((a) => Buffer.from(a).toString('utf-8'));
+    }
+
+    parseEnviron(envp: Uint8Array[]) {
+        var ret = {};
+        for (let entry of envp) {
+            var s = Buffer.from(entry).toString('utf-8'),
+                eqIdx = s.indexOf('=');
+            if (eqIdx > -1) {
+                ret[s.substring(0, eqIdx)] = s.substring(eqIdx + 1);
+            }
+        }
+        return ret;
     }
 
 }

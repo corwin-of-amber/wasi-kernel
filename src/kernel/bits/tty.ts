@@ -44,8 +44,8 @@ class Tty extends EventEmitter {
     // ------------------------------
 
     fd_fdstat_set_flags(fd: number, flags: number) {
-        this.debug(`call set_flags ${flags}\n`);
         if (fd === 0) {
+            this.debug(`fdstat_set_flags(${fd}, ${flags})\n`);
             this.stdin_fl = flags;
             this.core.stdin.blocking = !(flags & 0x4);
         }

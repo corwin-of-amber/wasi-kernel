@@ -74,9 +74,9 @@ class Proc extends EventEmitter {
             __indirect_function_table: this.funcTable, 
             ...bindAll(this, ['chdir', 'getcwd', 'geteuid', 'strmode',
                               '__control_setjmp', 'longjmp', 'siglongjmp',
-                              'vfork', '__control_fork', 'wait3', 'execve',
+                              'vfork', '__control_fork', 'wait', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction',
-                              'getpagesize'])
+                              'getpagesize', 'posix_spawn'])
         };
     }
 
@@ -225,8 +225,35 @@ class Proc extends EventEmitter {
             this.userGetCStrings(envp));
     }
 
+    posix_spawn(pid: i32, path: i32, file_actions: i32, attrp: i32,
+                argv: i32, envp: i32) {
+        var pathStr = this.userGetCString(path).toString('utf-8');
+        this.debug(`posix_spawn(${pid}, "${pathStr}", ${file_actions}, ${attrp}, ...})`);
+        var execv = new ExecvCall(
+                        pathStr,
+                        this.userGetCStrings(argv),
+                        this.userGetCStrings(envp)),
+            newPid = Math.max(0, ...this.childset) + 1;
+
+        this.emit('syscall', {
+            func: 'spawn', 
+            data: {pid: newPid, execv, env: this.core.env}
+        });
+        this.mem.setUint32(pid, newPid, true);
+        return 0;
+    }
+
+    wait(stat_loc: i32) {
+        this.debug(`wait(${stat_loc})`);
+        return this.waitBase(stat_loc);
+    }
+
     wait3(stat_loc: i32, options: i32, rusage: i32) {
         this.debug(`wait3(${stat_loc}, ${options}, ${rusage})`);
+        return this.waitBase(stat_loc);
+    }
+    
+    waitBase(stat_loc: i32) {
         var pid = this.childq.dequeue(),
             exitcode = this.childq.dequeue();
         this.debug(`  -> ${pid}`);
