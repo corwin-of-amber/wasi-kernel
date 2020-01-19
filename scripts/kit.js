@@ -20,7 +20,7 @@ function main() {
         args = process.argv.slice(2);
 
     const PHASES = {
-        'clang': Compile, 'ar': Archive, 'mv': Move
+        'clang': Compile, 'ar': Archive, 'mv': Move, 'kit.js': Hijack
     },
         phase = PHASES[prog];
     
@@ -49,8 +49,15 @@ function patchOutput(filename) {
 class Phase {
 
     run(prog, args) {
-        this._exec(progs_native[prog], args);
+        this.runNative(prog, args);
+        this.runWasm(prog, args);
+    }
 
+    runNative(prog, args) {
+        this._exec(progs_native[prog], args);
+    }
+
+    runWasm(prog, args) {
         var patchedArgs = this.patchArgs(args);
         if (patchedArgs) {
             this._exec(progs_wasi[prog], patchedArgs);
@@ -66,11 +73,28 @@ class Phase {
         return child_process.execFileSync(prog, args, {stdio: 'inherit'});
     }
 
+    getConfig() {
+        var fn = this.closest('wasi-kit.json');
+        return fn ? JSON.parse(fs.readFileSync(fn, 'utf-8')) : {};
+    }
+
+    closest(basename, required = false, description = undefined) {
+        var at = '';
+        while (fs.realpathSync(at) != '/') {
+            let loc = at + basename;
+            if (fs.existsSync(loc)) return loc;
+            at = '../' + at;
+        }
+        throw new Error(`${description || `'${basename}'`} not found`);
+    }
+
 }
 
 class Compile extends Phase {
 
     patchArgs(args) {
+        var config = this.getConfig();
+
         var patched = [], wasmOut, flags = {};
         for (let i = 0; i < args.length; i++) {
             let arg = args[i];
@@ -79,37 +103,41 @@ class Compile extends Phase {
                 flags['-c'] = true;
             }
             else if (arg == '-o') {
+                flags['-o'] = arg;
                 i++;
                 wasmOut = patchOutput(args[i]);
-                if (!wasmOut) { console.log(`  (wasm skipped)`); return; }
-                patched.push(wasmOut.fn);
-                console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
+                patched.push(wasmOut ? wasmOut.fn : '/dev/null');
             }
         }
         // Handle corner case when default output is used (.c -> .o)
-        if (!wasmOut) {
-            if (flags['-c']) {
-                var cInput = args.find(a => a.match(/[.]c$/));
-                if (cInput)
-                    patched.push('-o', cInput.replace(/[.]c$/, '.wo'));
-                else return;
+        if (flags['-c'] && !flags['-o']) {
+            var cInput = args.find(a => a.match(/[.]c$/));
+            if (cInput) {
+                wasmOut = {fn: cInput.replace(/[.]c$/, '.wo'), type: 'obj'};
+                patched.push('-o', wasmOut.fn);
             }
-            else return;
         }
+
+        if (wasmOut && config[wasmOut.fn] === 'skip')
+            wasmOut = undefined;
+
+        if (wasmOut) {
+            console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
+        }
+        else {
+            console.log(`  (wasm skipped)`);
+            return; 
+        }
+
         var wasiInc = this.locateIncludes();
-        patched.push(`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`);
+        patched.splice(0, 0, `-I${wasiInc}`, `-I${wasiInc}-preconf`, '-include', `${wasiInc}/etc.h`);
         return patched;
     }
 
     locateIncludes() {
-        var at = '';
-        while (fs.realpathSync(at) != '/') {
-            let loc = at + 'wasi';
-            if (fs.existsSync(loc)) return loc;
-            at = '../' + at;
-        }
-        throw new Error('wasi include directory not found');
+        return this.closest('wasi', true, 'wasi include directory');
     }
+
 }
 
 class Move extends Phase {
@@ -161,6 +189,42 @@ class Archive extends Phase {
         return patched;
     }
 
+}
+
+class Hijack extends Phase {
+
+    run(prog, args) {
+        this.mkBin('/tmp/wasi-kit-hijack', __filename);
+        this._exec(this.which(args[0]), args.slice(1));
+    }
+
+    which(filename) {
+        if (filename.indexOf('/') >= 0) return filename;
+
+        for (let pe of process.env['PATH'].split(':')) {
+            var full = path.join(pe, filename);
+            if (this.existsExec(full)) return full;
+        }
+        throw new Error(`${filename}: not found`);
+    }
+
+    mkBin(basedir, script) {
+        if (!fs.existsSync(basedir)) {
+            fs.mkdirSync(basedir);
+            for (let tool of ['clang', 'mv', 'ar']) {
+                fs.symlinkSync(script, path.join(basedir, tool));
+            }
+        }
+        process.env['PATH'] = `${basedir}:${process.env['PATH']}`;
+    }
+
+    existsExec(p) {
+        try {
+            let stat = fs.statSync(p);
+            return stat && stat.isFile() && (stat.mode & fs.constants.S_IXUSR);
+        }
+        catch (e) { return false; }
+    }
 }
 
 
