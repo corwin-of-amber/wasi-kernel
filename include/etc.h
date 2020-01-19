@@ -59,6 +59,8 @@ int
 
 void abort(void);
 
+#define P_tmpdir "/tmp"
+
 /* stdio.h */
 
 void
@@ -148,6 +150,8 @@ pid_t
      vfork(void);     
 int
      execve(const char *path, char *const argv[], char *const envp[]);
+int
+     execl(const char *path, const char *arg0, ... /*, (char *)0 */);
 int
      execlp(const char *file, const char *arg0, ...);
 int
