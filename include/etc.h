@@ -228,18 +228,6 @@ int
 
 #define st_birthtimespec st_atim
      
-/* sys/resource.h */
-
-typedef unsigned int rlim_t;
-struct rlimit { rlim_t rlim_max; rlim_t rlim_cur; };
-static const int RLIM_INFINITY = 0;
-
-int
-     getrlimit(int resource, struct rlimit *rlp);
-
-int
-     setrlimit(int resource, const struct rlimit *rlp);
-
 /* dirent.h */
 
 #define DT_SOCK 12
