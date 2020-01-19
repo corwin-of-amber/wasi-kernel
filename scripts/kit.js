@@ -20,7 +20,8 @@ function main() {
         args = process.argv.slice(2);
 
     const PHASES = {
-        'clang': Compile, 'ar': Archive, 'mv': Move, 'kit.js': Hijack
+        'clang': Compile, 'ar': Archive, 'mv': Move,
+        'kit.js': Hijack, 'wasi-kit': Hijack
     },
         phase = PHASES[prog];
     
@@ -37,14 +38,33 @@ function main() {
 }
 
 
-function patchOutput(filename) {
-    if (filename.match(/[.]o$/)) {
+function patchOutput(filename, config={}) {
+    if (config[filename] && config[filename].output) {
+        return {type: config[filename].type || 'obj',
+                fn: config[filename].output,
+                config: config[filename]};
+    }
+    else if (filename.match(/[.]o$/)) {
         return {type: 'obj', fn: filename.replace(/[.]o$/, '.wo')};
     }
     else if (filename.match(/[.]a$/)) {
         return {type: 'lib-archive', fn: filename.replace(/[.]a$/, '.wa')}
     }
 }
+
+function patchArgument(arg, config={}, wasmIn=undefined) {
+    if (!arg.startsWith('-')) {
+        let inp = patchOutput(arg, config);
+        if (inp) {
+            if (fs.existsSync(inp.fn)) {
+                if (wasmIn) wasmIn.push(inp);
+                return inp.fn;
+            }
+        }
+    }
+    return arg;
+}
+
 
 class Phase {
 
@@ -85,7 +105,8 @@ class Phase {
             if (fs.existsSync(loc)) return loc;
             at = '../' + at;
         }
-        throw new Error(`${description || `'${basename}'`} not found`);
+        if (required)
+            throw new Error(`${description || `'${basename}'`} not found`);
     }
 
 }
@@ -95,25 +116,23 @@ class Compile extends Phase {
     patchArgs(args) {
         var config = this.getConfig();
 
-        var patched = [], wasmOut, flags = {};
+        var patched = [], wasmOut, wasmIn = [], flags = {};
         for (let i = 0; i < args.length; i++) {
             let arg = args[i];
-            patched.push(arg);
+            patched.push(patchArgument(arg, config, wasmIn));
             if (arg == '-c') {
                 flags['-c'] = true;
             }
             else if (arg == '-o') {
-                flags['-o'] = arg;
                 i++;
-                wasmOut = patchOutput(args[i]);
+                flags['-o'] = args[i];
+                wasmOut = patchOutput(args[i], config);
                 patched.push(wasmOut ? wasmOut.fn : '/dev/null');
             }
         }
         // Handle corner case when default output is used (.c -> .o)
         if (flags['-c'] && !flags['-o']) {
-            var cInput = args.find(a => a.match(/[.]c$/));
-            if (cInput) {
-                wasmOut = {fn: cInput.replace(/[.]c$/, '.wo'), type: 'obj'};
+            if (wasmOut = this.getDefaultOutput(args)) {
                 patched.push('-o', wasmOut.fn);
             }
         }
@@ -121,6 +140,37 @@ class Compile extends Phase {
         if (wasmOut && config[wasmOut.fn] === 'skip')
             wasmOut = undefined;
 
+        this.report(wasmOut, wasmIn, flags);
+
+        if (wasmOut) {
+            return this.postProcessArgs(wasmOut, patched);
+        }
+    }
+
+    getDefaultOutput(args) {
+        var cInput = args.find(a => a.match(/[.]c$/));
+        return cInput &&
+            {fn: cInput.replace(/[.]c$/, '.wo'), type: 'obj'};
+    }
+
+    postProcessArgs(wasmOut, patched) {
+        // Add WASI include directories
+        var wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf();
+        patched.unshift(`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`);
+        if (wasiPreconf) patched.unshift(`-I${wasiPreconf}`);
+
+        // Apply config settings
+        if (wasmOut.config) {
+            if (wasmOut.config.noargs)
+                patched = patched.filter(x => !this.matches(x, wasmOut.config.noargs));
+            if (wasmOut.config.args)
+                patched.push(...wasmOut.config.args);
+        }
+
+        return patched;
+    }
+
+    report(wasmOut, wasmIn, flags) {
         if (wasmOut) {
             console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
         }
@@ -129,13 +179,28 @@ class Compile extends Phase {
             return; 
         }
 
-        var wasiInc = this.locateIncludes();
-        patched.splice(0, 0, `-I${wasiInc}`, `-I${wasiInc}-preconf`, '-include', `${wasiInc}/etc.h`);
-        return patched;
+        if (wasmIn && !flags['-c']) {
+            for (let inp of wasmIn)
+                console.log(`   - ${inp.fn} [${inp.type}]`);
+        }
     }
 
     locateIncludes() {
         return this.closest('wasi', true, 'wasi include directory');
+    }
+
+    locatePreconf() {
+        return this.closest('wasi-preconf');
+    }
+
+    matches(x, patterns) {
+        function m(x, pat) {
+            if (pat.startsWith("re:"))
+                return new RegExp(pat.substring(3)).exec(x);
+            else
+                return x == pat;
+        }
+        return patterns.some(pat => m(x, pat));
     }
 
 }
@@ -160,7 +225,6 @@ class Move extends Phase {
 class Archive extends Phase {
 
     run(prog, args) {
-        console.log('---  ar  ---');
         super.run(prog, args);
     }
     
