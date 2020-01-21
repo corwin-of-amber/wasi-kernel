@@ -53,14 +53,24 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
                 let d = e.data;
                 var argv = this.parseArgv(d.execv.argv),
                     env = Object.assign(d.env, this.parseEnviron(d.execv.envp));
-                var p = this.loader.spawn(d.execv.prog, argv, env),
-                    exitcode = -1;
-                p.promise
-                    .then((ev: {code: number}) => exitcode = ev.code)
-                    .finally(() => {
-                        parent.childq.enqueue(d.pid);
-                        parent.childq.enqueue(exitcode);
-                    });
+                try {
+                    var p = this.loader.spawn(d.execv.prog, argv, env),
+                        exitcode = -1;
+                    p.promise
+                        .then((ev: {code: number}) => exitcode = ev.code)
+                        .finally(() => {
+                            parent.childq.enqueue(d.pid);
+                            parent.childq.enqueue(exitcode);
+                        });
+                }
+                catch (e) {
+                    console.error('error during spawn', d.execv);
+                    console.error(e);
+                    // it's unfortunately too late to fail the original
+                    // execv or spawn at this point
+                    parent.childq.enqueue(d.pid);
+                    parent.childq.enqueue(-1);
+                }
             }
         });
     }
