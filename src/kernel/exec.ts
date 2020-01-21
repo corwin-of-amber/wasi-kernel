@@ -168,7 +168,7 @@ class ExecCore extends EventEmitter {
     }
 
     defaultEnv() {
-        return {PATH: '/bin', CWD: '/home'};
+        return {PATH: '/bin', PWD: '/home'};
     }
 
     registerStdio() {

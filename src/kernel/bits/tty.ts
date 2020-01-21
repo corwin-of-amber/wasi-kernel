@@ -88,7 +88,8 @@ class Tty extends EventEmitter {
         this.debug(`tcsetattr(${fd}, ${when}, ${termios_p})`);
         let mem = this.core.proc.mem,
             flags = range(4).map((_,i) => mem.getUint32(termios_p + i * 4, true));
-        this.debug(`  ${JSON.stringify(flags)}`);
+        this.debug(`  [${flags.map(i => '0'+i.toString(8)).join(', ')}]`);
+        this.termios.flags = flags;
         this.core.proc.emit('syscall', {
             func: 'ioctl:tty',
             data: {fd, when, flags}
@@ -97,7 +98,7 @@ class Tty extends EventEmitter {
     }
 
     tgetent(bp: i32, name: i32) {
-        this.debug(`tgetent(_, '${this.core.proc.userGetCString(name)})`);
+        this.debug(`tgetent(_, '${this.core.proc.userGetCString(name)}')`);
         return 1;
     }
 

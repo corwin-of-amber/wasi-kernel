@@ -23,6 +23,7 @@ static const int F_DUPFD = 0;
 
 extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASI_EXTERNAL_NAME(dupfd);
 
+extern void __wasi_trace(const char *) __WASI_EXTERNAL_NAME(trace);
 extern void __wasi_sorry(void *) __WASI_EXTERNAL_NAME(sorry);
 
 void *malloc(size_t);

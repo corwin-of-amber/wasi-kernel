@@ -6,10 +6,12 @@ var names = [
     "dup2",
     "setjmp",
     "sigsetjmp",
+    "execl",
     "execvp",
     "execlp",
     "getpwnam",
     "getpwnam_r",
+    "getpwent",
     "tcsetpgrp",
     "kill",
     "killpg",
@@ -77,6 +79,8 @@ var names = [
     "dlclose",
     "dlsym",
     "dlerror",
+    "errx",        //???
+    "vwarnx",      //???
     // posix
     "posix_spawn",
     "posix_spawnattr_init",

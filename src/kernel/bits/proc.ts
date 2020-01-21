@@ -46,7 +46,7 @@ class Proc extends EventEmitter {
     }
 
     init() {
-        const newfd = [...this.core.wasi.FD_MAP.keys()].reverse()[0] + 1,
+        const newfd = this.newfd(),
               fdcwd = {
                   real: newfd,
                   rights: RIGHTS_ALL,  // uhm
@@ -56,6 +56,8 @@ class Proc extends EventEmitter {
               };
         this.core.wasi.FD_MAP.set(AT_FDCWD, fdcwd);
         this.core.wasi.FD_MAP.set(newfd, fdcwd);  // last key inserted must be the largest
+
+        this.core.wasmFs.fs.writeFileSync('/dev/null', '');
     }
 
     get import() {
@@ -81,13 +83,13 @@ class Proc extends EventEmitter {
     }
 
     get extlib() {
-        return bindAll(this, ['sorry', 'dupfd', 'progname_get', 'login_get']);
+        return bindAll(this, ['trace', 'sorry', 'dupfd', 'progname_get', 'login_get']);
     }
 
     get path() {
         return {...path,
             resolve: (dir: string, ...paths: string[]) => {
-                if (dir == '.') dir = this.core.env.CWD;
+                if (dir == '.') dir = this.core.env.PWD;
                 return path.resolve(dir || '/', ...paths)
             }
         };
@@ -115,25 +117,25 @@ class Proc extends EventEmitter {
 
     chdir(buf: i32) {
         var d = this.userGetCString(buf).toString('utf-8');
-        this.core.env.CWD = d;
+        this.core.env.PWD = d;
     }
 
     getcwd(buf: i32, sz: i32) {
         this.debug('getcwd', buf, sz);
         /* @todo allocate buf if null */
         if (buf === 0) throw 'getcwd(0): not implemented';
-        let ret = (this.core.env.CWD || '') + '\0';
+        let ret = (this.core.env.PWD || '') + '\0';
         if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
         this.membuf.write(ret, buf);
         return buf;
     }
 
-    progname_get(pbuf: number) {
+    progname_get(pbuf: i32) {
         var ret = this.core.argv[0] + '\0';
         return this.userCStringMalloc(ret, pbuf);
     }
 
-    login_get(pbuf: number) {
+    login_get(pbuf: i32) {
         var ret = 'user' + '\0';
         return this.userCStringMalloc(ret, pbuf);
     }
@@ -142,12 +144,28 @@ class Proc extends EventEmitter {
         return 0;
     }
 
+    trace(message: i32) {
+        var buf = this.userGetCString(message), bufStr = '';
+        try { bufStr = buf.toString('utf-8') } catch(e) { }
+        console.warn('[trace]', buf, bufStr);
+    }
+
     // ----------
     // Files Part
     // ----------
 
+    newfd(minfd: number = 0) {
+        var highest = Math.max(...this.core.wasi.FD_MAP.keys());
+        return Math.max(minfd, highest + 1);
+    }
+
     dupfd(fd: i32, minfd: i32, cloexec: boolean) {
-        return minfd; /* oops */
+        var desc = this.core.wasi.FD_MAP.get(fd);
+        if (!desc) return -1;
+
+        var newfd = this.newfd(minfd);
+        this.core.wasi.FD_MAP.set(newfd, desc);
+        return newfd;
     }
 
     strmode(mode: i32, buf: i32) {
