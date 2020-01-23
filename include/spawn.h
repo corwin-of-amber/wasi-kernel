@@ -25,6 +25,18 @@ int
      posix_spawnattr_getsigmask(const posix_spawnattr_t *restrict attr,
          sigset_t *restrict sigmask);
 
+int
+     posix_spawnattr_setsigdefault(posix_spawnattr_t *restrict attr,
+         const sigset_t *restrict sigdefault);
+int
+     posix_spawnattr_getsigdefault(const posix_spawnattr_t *restrict attr,
+         sigset_t *restrict sigdefault);
+
+int
+     posix_spawnattr_setpgroup(posix_spawnattr_t *attr, pid_t pgroup);
+int
+     posix_spawnattr_getpgroup(const posix_spawnattr_t *restrict attr, pid_t *restrict pgroup);
+
 typedef void *posix_spawn_file_actions_t;
 
 int

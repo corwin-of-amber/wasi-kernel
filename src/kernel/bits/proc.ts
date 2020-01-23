@@ -74,7 +74,7 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['chdir', 'getcwd', 'geteuid', 'strmode',
+            ...bindAll(this, ['chdir', 'getcwd', 'realpath', 'geteuid', 'strmode',
                               '__control_setjmp', 'longjmp', 'siglongjmp',
                               'vfork', '__control_fork', 'wait', 'wait3', 'execve',
                               'sigkill', 'sigsuspend', 'sigaction',
@@ -154,18 +154,38 @@ class Proc extends EventEmitter {
     // Files Part
     // ----------
 
+    realpath(file_name: i32, resolved_name: i32) {
+        var arg = this.userGetCString(file_name);
+        /* @todo allocate resolved_name if null */
+        if (resolved_name === 0) throw 'realpath(0): not implemented';
+        let ret = path.resolve(this.core.env.PWD, arg.toString('utf-8')) + '\0';
+        if (ret.length > PATH_MAX) throw {errno: 1, code: 'ERANGE'};
+        this.membuf.write(ret, resolved_name);
+        return resolved_name;
+    }
+
     newfd(minfd: number = 0) {
         var highest = Math.max(...this.core.wasi.FD_MAP.keys());
         return Math.max(minfd, highest + 1);
     }
 
     dupfd(fd: i32, minfd: i32, cloexec: boolean) {
+        this.debug('dupfd', fd, minfd, cloexec);
         var desc = this.core.wasi.FD_MAP.get(fd);
         if (!desc) return -1;
 
         var newfd = this.newfd(minfd);
-        this.core.wasi.FD_MAP.set(newfd, desc);
+        this.core.wasi.FD_MAP.set(newfd, this.dupdesc(desc));
         return newfd;
+    }
+
+    dupdesc(desc: {real: number}): any /* File is not exported from @wasmer/wasi */ {
+        // A hack to get a new "real" fd
+        var newreal = this.core.wasmFs.volume.openSync('/', 'r');
+        // - this heavily relies on the memfs implementation of Volume
+        var realFD_MAP = this.core.wasmFs.volume.fds;
+        realFD_MAP[newreal] = realFD_MAP[desc.real];
+        return Object.assign({}, desc, {real: newreal});
     }
 
     strmode(mode: i32, buf: i32) {
@@ -413,6 +433,8 @@ class SignalVector extends EventEmitter {
     }
 
 }
+
+const PATH_MAX = 256;
 
 type SignalVectorProps = {
     wait?: Int32Array

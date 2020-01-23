@@ -1,8 +1,10 @@
 #pragma once
 
+#define __NEED_sigset_t
+
 #include <stdint.h>
 #include <sys/types.h>
-#include <signal.h>
+#include <bits/alltypes.h>
 
 #define __WASI_EXTERNAL_NAME(name) \
     __attribute__((__import_module__("wasi_ext"), __import_name__(#name)))
@@ -73,7 +75,13 @@ void
 
 int
      fpurge(FILE *stream);
-     
+
+char *
+     ctermid(char *buf);
+
+char *
+     ctermid_r(char *buf);
+
 /* unistd.h */
 
 int
@@ -150,6 +158,8 @@ pid_t
 pid_t
      vfork(void);     
 int
+     execv(const char *path, char *const argv[]);
+int
      execve(const char *path, char *const argv[], char *const envp[]);
 int
      execl(const char *path, const char *arg0, ... /*, (char *)0 */);
@@ -178,6 +188,9 @@ void
      strmode(int mode, char *bp);
 
 /* signal.h */
+
+struct sigaction;
+typedef struct sigaltstack stack_t;
 
 int
      sigaction(int sig, const struct sigaction *restrict act,
