@@ -44,8 +44,8 @@ class Tty extends EventEmitter {
     // ------------------------------
 
     fd_fdstat_set_flags(fd: number, flags: number) {
+        this.debug(`fdstat_set_flags(${fd}, ${flags})\n`);
         if (fd === 0) {
-            this.debug(`fdstat_set_flags(${fd}, ${flags})\n`);
             this.stdin_fl = flags;
             this.core.stdin.blocking = !(flags & 0x4);
         }
@@ -76,20 +76,25 @@ class Tty extends EventEmitter {
     tcgetattr(fd: i32, termios_p: i32) {
         this.debug(`tcgetattr(${fd}, ${termios_p})`);
         let mem = this.core.proc.mem;
-        for (let fl of this.termios.flags) {
-            mem.setUint32(termios_p, fl, true);
-            termios_p += 4;
-        }
-        /* speed and character table are skipped :\ */
+        this.termios.flags.forEach((fl, i) => {
+            mem.setUint32(termios_p + 4 * i, fl, true);
+        });
+
+        mem.setUint8(termios_p + (4 * 4) + 1 + 5, 0);  // VTIME
+        mem.setUint8(termios_p + (4 * 4) + 1 + 6, 1);  // VMIN
+
+        /* speed other control characters are skipped :\ */
         return 0;
     }
 
     tcsetattr(fd: i32, when: i32, termios_p: i32) {
         this.debug(`tcsetattr(${fd}, ${when}, ${termios_p})`);
         let mem = this.core.proc.mem,
-            flags = range(4).map((_,i) => mem.getUint32(termios_p + i * 4, true));
-        this.debug(`  [${flags.map(i => '0'+i.toString(8)).join(', ')}]`);
+            flags = range(4).map(i => mem.getUint32(termios_p + 4 * i, true)),
+            cc = range(32).map(i => mem.getUint8(termios_p + (4 * 4) + 1 + i));
+        this.debug(`  [${flags.map(i => '0'+i.toString(8)).join(', ')}] [${cc}]`);
         this.termios.flags = flags;
+        this.core.stdin.blocking = cc[6] > 0;   // VMIN
         this.core.proc.emit('syscall', {
             func: 'ioctl:tty',
             data: {fd, when, flags}
