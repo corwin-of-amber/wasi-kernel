@@ -74,11 +74,13 @@ class Proc extends EventEmitter {
         return {
             ...stubs,
             __indirect_function_table: this.funcTable, 
-            ...bindAll(this, ['chdir', 'getcwd', 'realpath', 'geteuid', 'strmode',
-                              '__control_setjmp', 'longjmp', 'siglongjmp',
-                              'vfork', '__control_fork', 'wait', 'wait3', 'execve',
-                              'sigkill', 'sigsuspend', 'sigaction',
-                              'getpagesize', 'posix_spawn'])
+            ...bindAll(this, [
+                'chdir', 'getcwd', 'realpath', 'geteuid', 'strmode',
+                '__control_setjmp', '__control_setjmp_with_return',
+                'setjmp', 'longjmp', 'sigsetjmp', 'siglongjmp',
+                'vfork', '__control_fork', 'wait', 'wait3', 'execve',
+                'sigkill', 'sigsuspend', 'sigaction',
+                'getpagesize', 'posix_spawn'])
         };
     }
 
@@ -199,26 +201,44 @@ class Proc extends EventEmitter {
 
     __control_setjmp(env: i32, block: i32) {
         this.debug(`__control_setjmp [${env}, ${block}]`);
+        this.mem.setUint32(env, 0);  // set jmpbuf[0].ret = 0
         let impl = this.blockImpl(block), val = 0;
-        while (true) {
-            try {
-                impl(val);
-                break;
-            }
-            catch (e) {
-                this.debug(`setjmp caught ${JSON.stringify(e)}`);
-                if (e instanceof Longjmp && e.env == env)
-                    val = e.val;
-                else
-                    throw e;
+        try {
+            while (true) {
+                try {
+                    return impl(val);
+                }
+                catch (e) {
+                    this.debug(`setjmp caught ${JSON.stringify(e)}`);
+                    if (e instanceof Longjmp && e.env == env)
+                        val = e.val;
+                    else
+                        throw e;
+                }
             }
         }
-        this.debug(`__control_setjmp exiting`);
+        finally {
+            this.debug(`__control_setjmp exiting`);
+        }
+    }
+
+    __control_setjmp_with_return(env: i32, block: i32) {
+        return this.__control_setjmp(env, block);
+    }
+
+    setjmp(env: i32) {
+        console.warn('setjmp', env);
+        return 0;
     }
 
     longjmp(env: i32, val: i32) {
         this.debug(`longjmp [${env}] ${val}`);
         throw new Longjmp(env, val);
+    }
+
+    sigsetjmp(env: i32, save_mask: i32) {
+        console.warn('sigsetjmp', env, save_mask);
+        return 0;
     }
 
     siglongjmp(env: i32, val: i32) {

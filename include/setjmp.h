@@ -1,6 +1,13 @@
 #pragma once
 
-typedef void *jmp_buf[1];
+typedef uint32_t setjmp_ret_val;
+
+struct __jmp_buf { 
+    uint32_t ret;
+    setjmp_ret_val ret_val; 
+};
+
+typedef struct __jmp_buf jmp_buf[1];
 
 int
     setjmp(jmp_buf env);
@@ -8,7 +15,7 @@ int
 void
     longjmp(jmp_buf, int);
 
-typedef void *sigjmp_buf[1];
+typedef struct __jmp_buf sigjmp_buf[1];
 
 void
      siglongjmp(sigjmp_buf env, int val);

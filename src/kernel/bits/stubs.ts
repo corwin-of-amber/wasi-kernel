@@ -4,8 +4,6 @@ var names = [
     "pipe",
     "dup",
     "dup2",
-    "setjmp",
-    "sigsetjmp",
     "execv",
     "execl",
     "execvp",
