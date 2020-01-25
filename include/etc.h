@@ -24,6 +24,7 @@ static const int F_DUPFD = 0;
 #define AT_FDCWD (-100)
 
 extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASI_EXTERNAL_NAME(dupfd);
+extern int __wasi_tty_ioctl(int fd, int request, void *buf) __WASI_EXTERNAL_NAME(tty_ioctl);
 
 extern void __wasi_trace(const char *) __WASI_EXTERNAL_NAME(trace);
 extern void __wasi_sorry(void *) __WASI_EXTERNAL_NAME(sorry);

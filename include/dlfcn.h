@@ -11,3 +11,5 @@ int
           
 static const int RTLD_NOW = 1;
 static const int RTLD_LAZY = 2;
+static const int RTLD_LOCAL = 4;
+static const int RTLD_GLOBAL = 8;

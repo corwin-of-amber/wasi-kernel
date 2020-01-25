@@ -8,7 +8,7 @@ class Tty extends EventEmitter {
     core: ExecCore
     fds: number[]
     stdin_fl: number
-    termios: {flags: i32[]}
+    termios: {flags: i32[], win: Uint16Array}
 
     debug: (...args: any) => void;
 
@@ -18,7 +18,8 @@ class Tty extends EventEmitter {
         this.fds = [];
         this.stdin_fl = 0;
         this.termios = {
-            flags: [0o402, 0o3, 0, 0o12]  /* see include/bits/termios.h */
+            flags: [0o402, 0o3, 0, 0o12],  /* see include/bits/termios.h */
+            win: this.defaultWindow()
         };
 
         this.core.on('stream:out', ev => {
@@ -28,6 +29,8 @@ class Tty extends EventEmitter {
 
         this.debug = () => {};
     }
+
+    to(): TtyProps { return {termios: {win: this.termios.win}}; }
 
     makeTty(fd: number) {
         // Make isatty(fd) return `true`
@@ -61,12 +64,23 @@ class Tty extends EventEmitter {
         return ret;
     }
 
+    defaultWindow() {
+        var win = new Uint16Array(new SharedArrayBuffer(4));
+        win[0] = 24;  // rows
+        win[1] = 80;  // cols
+        return win;
+    }
+
     get overrideImport() {
         return bindAll(this, ['fd_fdstat_get', 'fd_fdstat_set_flags']);
     }
 
     get import() {
         return bindAll(this, ['tcgetattr', 'tcsetattr', 'tgetent']);
+    }
+
+    get extlib() {
+        return bindAll(this, ['tty_ioctl']);
     }
 
     // ------------
@@ -107,10 +121,41 @@ class Tty extends EventEmitter {
         return 1;
     }
 
+    tty_ioctl(fd: i32, request: i32, buf: i32) {
+        console.warn('tty_ioctl', fd, request, buf);
+        if (fd == 1) {
+            var mem = this.core.proc.mem, win = this.termios.win;
+
+            switch (request) {
+            case TtyIoctls.TIOCGWINSZ:
+                for (let i = 0; i < win.length; i++)
+                    mem.setUint16(buf + 2 * i, win[i], true);
+                break;
+            case TtyIoctls.TIOCSWINSZ:
+                var setting = win.map((_,i) => mem.getUint16(buf + 2 * i));
+                this.core.proc.emit('syscall', {
+                    func: 'ioctl:tty',
+                    data: {fd, request, win: setting}
+                });
+                break;
+            }
+        }
+    }
+
 }
 
 
 type i32 = number;
+
+type TtyProps = {
+    termios: { win: Uint16Array }
+};
+
+enum TtyIoctls {
+    TCSETFL = 1,
+    TIOCGWINSZ = 0x5413,
+    TIOCSWINSZ = 0x5414
+};
 
 function bindAll(instance: any, methods: string[]) {
     return methods.reduce((d, m) =>
@@ -122,4 +167,4 @@ function range(n: number) : number[] {
 }
 
 
-export { Tty }
+export { Tty, TtyProps }

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 
 import { SimplexStream, TransformStreamDuplex } from './streams';
+import { TtyProps } from './bits/tty';
 import { SignalVector, ChildProcessQueue } from './bits/proc';
 
 import { Worker } from './bindings/workers';
@@ -18,6 +19,7 @@ abstract class ProcessBase extends EventEmitter {
     stdout: TransformStreamDuplex
 
     stdin_raw: SimplexStream
+    tty: TtyProps
     sigvec: SignalVector
     childq: ChildProcessQueue
 
@@ -84,6 +86,7 @@ class WorkerProcess extends ProcessBase {
         this.worker = new Worker('./worker.ts');
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = SimplexStream.from(ev.data.stdin);
+            if (ev.data.tty)    this.tty = ev.data.tty;
             if (ev.data.sigvec) this.sigvec = SignalVector.from(ev.data.sigvec);
             if (ev.data.childq) this.childq = SharedQueue.from(ev.data.childq);
             if (ev.data.fd)     this.stdout.write(ev.data.data);

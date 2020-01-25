@@ -114,7 +114,7 @@ class ExecCore extends EventEmitter {
 
         this.wasm = await WebAssembly.instantiate(bytes, {
             wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
-            wasi_ext: this.proc.extlib,
+            wasi_ext: {...this.proc.extlib, ...this.tty.extlib},
             env: {...this.proc.import, ...this.tty.import}
         });
     
@@ -150,8 +150,12 @@ class ExecCore extends EventEmitter {
      * (via e.g. Worker.postMessage) to communicate with this core.
      */
     share(): any {
-        return {stdin: this.stdin.to(),
-            sigvec: this.proc.sigvec.to(), childq: this.proc.childq.to()};
+        return {
+            stdin: this.stdin.to(),
+            tty: this.tty.to(),
+            sigvec: this.proc.sigvec.to(),
+            childq: this.proc.childq.to()
+        };
     }
     
     emitWrite(fd: number, buffer: Buffer | Uint8Array) {
