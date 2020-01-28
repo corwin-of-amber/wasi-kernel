@@ -4,6 +4,8 @@
 
 #include <sys/resource.h>   /* for struct rusage */
 
+WASI_C_START
+
 /*
  * Option bits for the third argument of wait4.  WNOHANG causes the
  * wait to not hang if there are no stopped or terminated processes, rather
@@ -56,3 +58,6 @@ pid_t
 
 pid_t
      waitpid(pid_t pid, int *stat_loc, int options);
+
+
+WASI_C_END

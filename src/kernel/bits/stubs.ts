@@ -80,6 +80,10 @@ var names = [
     "dlsym",
     "dlerror",
     "ctermid_r",
+    "socket",
+    "connect",
+    "popen",
+    "pclose",
     "errx",        //???
     "vwarnx",      //???
     // posix

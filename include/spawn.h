@@ -9,6 +9,9 @@ typedef void *posix_spawnattr_t;
 #define restrict
 #endif
 
+WASI_C_START
+
+
 int
      posix_spawnattr_init(posix_spawnattr_t *attr);
 int
@@ -98,3 +101,6 @@ int
 #define POSIX_SPAWN_PCONTROL_THROTTLE   0x0001
 #define POSIX_SPAWN_PCONTROL_SUSPEND    0x0002
 #define POSIX_SPAWN_PCONTROL_KILL       0x0003
+
+
+WASI_C_END

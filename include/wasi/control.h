@@ -1,5 +1,8 @@
 #pragma once
 
+WASI_C_START
+
+
 // - helpers for fork, setjmp/longjmp
 typedef void (^__control_block_t)(int);
 typedef setjmp_ret_val (^__control_block_ret_t)(int);
@@ -27,3 +30,6 @@ __control_setjmp_set_return(jmp_buf env, setjmp_ret_val ret_val) {
 static void _Block_object_dispose(const void *p, int val) 
     __attribute__ ((unused));
 static void _Block_object_dispose(const void *p, int val) { } 
+
+
+WASI_C_END

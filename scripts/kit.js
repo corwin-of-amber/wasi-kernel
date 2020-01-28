@@ -5,12 +5,14 @@ const child_process = require('child_process'),
 
 const progs_native = {
     'clang': '/usr/bin/clang',
+    'clang++': '/usr/bin/clang++',
     'ar': '/usr/bin/ar',
     'mv': '/bin/mv'
 };
 
 const progs_wasi = {
     'clang': '/opt/wasi-sdk/bin/clang',
+    'clang++': '/opt/wasi-sdk/bin/clang++',
     'ar': '/opt/wasi-sdk/bin/llvm-ar',
     'mv': '/bin/mv'
 };
@@ -20,7 +22,8 @@ function main() {
         args = process.argv.slice(2);
 
     const PHASES = {
-        'clang': Compile, 'ar': Archive, 'mv': Move,
+        'clang': Compile, 'clang++': Compile,
+        'ar': Archive, 'mv': Move,
         'kit.js': Hijack, 'wasi-kit': Hijack
     },
         phase = PHASES[prog];
@@ -275,7 +278,7 @@ class Hijack extends Phase {
     mkBin(basedir, script) {
         if (!fs.existsSync(basedir)) {
             fs.mkdirSync(basedir);
-            for (let tool of ['clang', 'mv', 'ar']) {
+            for (let tool of ['clang', 'clang++', 'mv', 'ar']) {
                 fs.symlinkSync(script, path.join(basedir, tool));
             }
         }

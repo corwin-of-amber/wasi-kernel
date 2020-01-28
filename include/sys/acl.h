@@ -1,5 +1,8 @@
 #pragma once
 
+WASI_C_START
+
+
 typedef void * acl_t;
 typedef void * acl_entry_t;
 typedef enum {
@@ -21,3 +24,6 @@ int
      acl_get_entry(acl_t acl, int entry_id, acl_entry_t *entry_p);
 int
      acl_free(void *obj_p);
+
+
+WASI_C_END

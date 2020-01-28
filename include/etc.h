@@ -6,6 +6,17 @@
 #include <sys/types.h>
 #include <bits/alltypes.h>
 
+
+#ifdef __cplusplus
+#define restrict
+#define WASI_C_START extern "C" {
+#define WASI_C_END }
+#else
+#define WASI_C_START
+#define WASI_C_END
+#endif
+
+
 #define __WASI_EXTERNAL_NAME(name) \
     __attribute__((__import_module__("wasi_ext"), __import_name__(#name)))
 
@@ -23,6 +34,9 @@ static void (* const SIG_ERR)(int) = 0;
 static const int F_DUPFD = 0;
 #define AT_FDCWD (-100)
 
+
+WASI_C_START
+
 extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASI_EXTERNAL_NAME(dupfd);
 extern int __wasi_tty_ioctl(int fd, int request, void *buf) __WASI_EXTERNAL_NAME(tty_ioctl);
 
@@ -30,10 +44,6 @@ extern void __wasi_trace(const char *) __WASI_EXTERNAL_NAME(trace);
 extern void __wasi_sorry(void *) __WASI_EXTERNAL_NAME(sorry);
 
 void *malloc(size_t);
-
-#ifndef __wasi__
-#define restrict
-#endif
 
 /* stdlib.h */
 
@@ -61,7 +71,9 @@ int
 int
      mkostemps(char *templat, int suffixlen, int oflags);
 
+/*
 void abort(void);
+*/
 
 #define P_tmpdir "/tmp"
 
@@ -77,9 +89,10 @@ void
 int
      fpurge(FILE *stream);
 
+/*
 char *
      ctermid(char *buf);
-
+*/
 char *
      ctermid_r(char *buf);
 
@@ -277,3 +290,6 @@ int
 #define F_UNLCK 2
 
 #define F_SETLKW 0
+
+
+WASI_C_END

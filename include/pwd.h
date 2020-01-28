@@ -1,5 +1,8 @@
 #pragma once
 
+WASI_C_START
+
+
 #include <sys/types.h>
 
 struct passwd {
@@ -37,3 +40,6 @@ void
 
 void
      endpwent();
+
+
+WASI_C_END

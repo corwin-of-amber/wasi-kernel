@@ -1,5 +1,8 @@
 #pragma once
 
+WASI_C_START
+
+
 typedef uint32_t setjmp_ret_val;
 
 struct __jmp_buf { 
@@ -22,3 +25,6 @@ void
 
 int
      sigsetjmp(sigjmp_buf env, int savemask);
+
+
+WASI_C_END

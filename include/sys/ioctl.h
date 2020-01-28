@@ -1,11 +1,9 @@
-#ifndef	_SYS_IOCTL_H
-#define	_SYS_IOCTL_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#pragma once
 
 #include <bits/ioctl.h>
+
+WASI_C_START
+
 
 /*
 #define N_TTY           0
@@ -123,8 +121,4 @@ struct winsize {
 
 int ioctl (int, int, ...);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+WASI_C_END

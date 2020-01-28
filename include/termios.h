@@ -1,9 +1,7 @@
-#ifndef	_TERMIOS_H
-#define	_TERMIOS_H
+#pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+WASI_C_START
+
 
 #include <features.h>
 
@@ -39,8 +37,4 @@ void cfmakeraw(struct termios *);
 int cfsetspeed(struct termios *, speed_t);
 #endif
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+WASI_C_END
