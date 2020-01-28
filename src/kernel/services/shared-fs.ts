@@ -190,7 +190,11 @@ class BlockDevice {
 
     writeText(blockNo: number, value: string, offset = 0) {
         // always utf-8 (also, for some reason TextEncoder doesn't work)
-        return this.write(blockNo, Buffer.from(value + '\0', 'utf-8'), offset);
+        var bytes = Buffer.from(value + '\0', 'utf-8');
+        if (bytes.length + offset > this.blockSize) {
+            throw new Error(`inode text overflow (block=${blockNo}, length=${bytes.length})`);
+        }
+        return this.write(blockNo, bytes, offset);
     }
 
     write(blockNo: number, value: Uint8Array, offset = 0) {
@@ -395,35 +399,37 @@ class LinkSharedVolume extends Link {
 
     push() {
         if (this.vol.dev) {
-            var c = {};
+            var c: LinkData = {};
             for (let [name, link] of Object.entries(this.children)) {
                 c[name] = {ino: link.ino};
             }
             var node = this.getNode(),
-                data = {c, p: node.perm, m: node.mode, v: node.ver};
-            this.vol.dev.writeText(this.ino, JSON.stringify(data));
+                data = JSON.stringify(c);
             this.vol.debug('+ push link', this.ino, data);
+            node.buf = Buffer.from(data);
+            node.ver++;
+            node.push();
         }
     }
 
     pull() {
         var blk = this.vol.dev.get(this.ino);
         if (blk[0] != 0) {
-            var data = this._read();
-            this.vol.debug('- pull link', this.ino, data);
-            for (let [name, linkData] of Object.entries(data.c || {})) {
-                if (typeof linkData.ino === 'number') {
-                    let inode = this.vol.getNodeShared(linkData.ino);
-                    this.children[name] = inode.getLink(this, name);
+            var node = this.getNode();
+            node.pull();
+            if (node.buf) {
+                var c: LinkData = JSON.parse(node.buf.toString('utf-8'));
+                this.vol.debug('- pull link', this.ino, c);
+                for (let [name, linkData] of Object.entries(c || {})) {
+                    if (typeof linkData.ino === 'number') {
+                        let inode = this.vol.getNodeShared(linkData.ino);
+                        this.children[name] = inode.getLink(this, name);
+                    }
                 }
             }
         }
     }
 
-    _read(): LinkInodeData {
-        var {buf: json} = this.vol.dev.readText(this.ino);
-        return JSON.parse(<string>json);
-    }
 }
 
 
@@ -436,9 +442,7 @@ type InodeData = {
     blob?: [number]
 };
 
-type LinkInodeData = InodeData & {
-    c: {[name: string]: {ino: number}}
-};
+type LinkData = {[name: string]: {ino: number}};
 
 
 namespace ProxyHandlers {
