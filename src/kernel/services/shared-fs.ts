@@ -1,4 +1,5 @@
 import { fs as memfs, Volume } from 'memfs';
+import { filenameToSteps } from 'memfs/lib/volume';
 import { Node, Link } from 'memfs/lib/node';
 import assert from 'assert';
 
@@ -28,8 +29,10 @@ class SharedVolume extends Volume {
         this.dev = BlockDevice.from(props.dev);
 
         vol = this;
+
         // root node was created before `vol` was initialized :\
-        this.root.getNode().vol = vol;
+        var rnode = this.root.getNode();
+        rnode.vol = this; rnode._link = this.root;
 
         this.debug = () => {}; // console.log;
     }
@@ -80,6 +83,37 @@ class SharedVolume extends Volume {
         return this.inodes[ino] || this._fetchNode(ino);
     }
 
+    /**
+     * Overriding this from memfs Volume to support relative symlinks.
+     */
+    getResolvedLink(filenameOrSteps: string | string[]): Link | null {
+        let steps: string[] = typeof filenameOrSteps === 'string' ? filenameToSteps(filenameOrSteps) : filenameOrSteps;
+    
+        let link: Link = this.root;
+
+        for (let i = 0; i < steps.length;) {
+            const step = steps[i],
+                  child = link.getChild(step);
+            if (!child) return null;
+        
+            const node = child.getNode();
+            if (node.isSymlink()) {
+                steps = node.symlink.concat(steps.slice(i + 1));
+                i = 0;
+                if (steps[0] !== '.') {
+                    link = this.root;
+                    continue;
+                }
+            }
+            else
+                link = child;
+
+            i++;
+        }
+    
+        return link;
+    }
+          
     _fetchNode(ino: number) {
         var node = <NodeSharedVolume>new this.props.Node(ino);
         this.inodes[ino] = node;
@@ -230,6 +264,13 @@ class NodeSharedVolume extends Node {
         this._link = null;
     }
 
+    setModeProperty(property: number) {
+        super.setModeProperty(property);
+        // parent class implementation does not call touch()
+        this.ver++;
+        this.push();
+    }
+
     getLink(parent?: LinkSharedVolume, name?: string) {
         if (!this._link) {
             assert(parent && name);
@@ -256,7 +297,7 @@ class NodeSharedVolume extends Node {
     }
 
     push() {
-        if (this.vol.dev) {
+        if (this.vol && this.vol.dev) {
             var blk = this.vol.dev.get(this.ino),
                 header: InodeData = {p: this.perm, m: this.mode, v: this.ver},
                 buf = this.buf;
@@ -266,6 +307,9 @@ class NodeSharedVolume extends Node {
             if (this.isBlob) {
                 header.blob = [buf.byteOffset];
                 buf = undefined;
+            }
+            if (this.symlink) {
+                header.symlink = this.symlink;
             }
             this.vol.debug('+ push node', this.ino, header);
             var wrc = this._write(header, buf);
@@ -281,6 +325,9 @@ class NodeSharedVolume extends Node {
             this.vol.debug('- pull node', this.ino, header);
             this.perm = header.p;
             this.mode = header.m;
+            this.symlink = header.symlink;
+            if (this.symlink)
+                console.log('symlink', this.symlink);
             if (this.ver != header.v) {
                 this.ver = header.v;
                 if (header.z >= 0) {
@@ -360,14 +407,18 @@ class LinkSharedVolume extends Link {
     parent: LinkSharedVolume
     node: NodeSharedVolume
 
+    _dirty: boolean
+
     constructor(vol: SharedVolume, parent: Link, name: string) {
         super(vol, parent, name);
+        this._dirty = false;
         return <any>new Proxy(this, new ProxyHandlers.LinkHandler());
         //this.children = new Proxy(this.children,
         //    new ProxyHandlers.LinkChildren(this));
     }
 
-    createChild(name: string, node: Node = this.vol.createNode()): LinkSharedVolume {
+    createChild(name: string, node: NodeSharedVolume = this.vol.createNode()): LinkSharedVolume {
+        this._dirty = true;
         const link = new LinkSharedVolume(this.vol, this, name);
         link.setNode(node);
         this.setChild(name, link);
@@ -375,12 +426,14 @@ class LinkSharedVolume extends Link {
     }
 
     setChild(name: string, link?: Link) {
+        this._dirty = true;
         link = super.setChild(name, link);
         this.touch();
         return link;
     }
 
     deleteChild(link: Link) {
+        this._dirty = true;
         super.deleteChild(link);
         this.touch();
     }
@@ -388,6 +441,11 @@ class LinkSharedVolume extends Link {
     touch() {
         this.vol.getNodeShared(this.ino).ver++;
         this.push();
+    }
+
+    setNode(node: NodeSharedVolume) {
+        super.setNode(node);
+        node._link = this;   // need also the backward link
     }
 
     getNode() {
@@ -409,6 +467,7 @@ class LinkSharedVolume extends Link {
             node.buf = Buffer.from(data);
             node.ver++;
             node.push();
+            this._dirty = false;
         }
     }
 
@@ -420,12 +479,14 @@ class LinkSharedVolume extends Link {
             if (node.buf) {
                 var c: LinkData = JSON.parse(node.buf.toString('utf-8'));
                 this.vol.debug('- pull link', this.ino, c);
+                var children = {};
                 for (let [name, linkData] of Object.entries(c || {})) {
                     if (typeof linkData.ino === 'number') {
                         let inode = this.vol.getNodeShared(linkData.ino);
-                        this.children[name] = inode.getLink(this, name);
+                        children[name] = inode.getLink(this, name);
                     }
                 }
+                this.children = children;
             }
         }
     }
@@ -439,6 +500,7 @@ type InodeData = {
     z?: number
     n?: number
     v?: number
+    symlink?: string[]
     blob?: [number]
 };
 
@@ -452,7 +514,7 @@ namespace ProxyHandlers {
      */
     export class LinkHandler {
         get(link: LinkSharedVolume, name: string) {
-            if (name === 'children' && link.vol.dev) {
+            if (name === 'children' && link.vol.dev && !link._dirty) {
                 link.pull();
             }
             return link[name];
