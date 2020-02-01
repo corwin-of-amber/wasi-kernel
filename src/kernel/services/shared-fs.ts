@@ -83,6 +83,17 @@ class SharedVolume extends Volume {
         return this.inodes[ino] || this._fetchNode(ino);
     }
 
+    createSymlink(target: string, filename: string) {
+        this.symlinkSync('', filename);
+        var link = this.getLink(filenameToSteps(filename));
+
+        var steps = target.split('/');
+        if (steps[0] == '') steps.splice(0, 1);
+        else steps.splice(0, 0, '.')
+        link.getNode().makeSymlink(steps);
+        return link;
+    }
+
     /**
      * Overriding this from memfs Volume to support relative symlinks.
      */
@@ -407,10 +418,12 @@ class LinkSharedVolume extends Link {
     parent: LinkSharedVolume
     node: NodeSharedVolume
 
+    ver: number
     _dirty: boolean
 
     constructor(vol: SharedVolume, parent: Link, name: string) {
         super(vol, parent, name);
+        this.ver = 0;
         this._dirty = false;
         return <any>new Proxy(this, new ProxyHandlers.LinkHandler());
         //this.children = new Proxy(this.children,
@@ -467,6 +480,7 @@ class LinkSharedVolume extends Link {
             node.buf = Buffer.from(data);
             node.ver++;
             node.push();
+            this.ver = node.ver;
             this._dirty = false;
         }
     }
@@ -476,7 +490,7 @@ class LinkSharedVolume extends Link {
         if (blk[0] != 0) {
             var node = this.getNode();
             node.pull();
-            if (node.buf) {
+            if (node.buf && node.ver !== this.ver) {
                 var c: LinkData = JSON.parse(node.buf.toString('utf-8'));
                 this.vol.debug('- pull link', this.ino, c);
                 var children = {};
@@ -487,6 +501,8 @@ class LinkSharedVolume extends Link {
                     }
                 }
                 this.children = children;
+                this.ver = node.ver;
+                this._dirty = false;
             }
         }
     }
