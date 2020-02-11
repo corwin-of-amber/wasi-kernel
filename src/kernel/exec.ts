@@ -35,7 +35,7 @@ class ExecCore extends EventEmitter {
 
     exited: boolean
 
-    cached: Map<string, Promise<Uint8Array>> /* cached binaries */
+    cached: Map<string, Promise<WebAssembly.Module>> /* cached binaries */
 
     debug: (...args: any) => void
 
@@ -108,15 +108,14 @@ class ExecCore extends EventEmitter {
         if (env)  Object.assign(this.env, env);
 
         // Fetch Wasm binary and instantiate WebAssembly instance
-        var bytes = await this.fetch(wasmUri);
+        var wamodule = await this.fetchCompile(wasmUri),
+            wainstance = await WebAssembly.instantiate(wamodule, {
+                wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
+                wasi_ext: {...this.proc.extlib, ...this.tty.extlib},
+                env: {...this.proc.import, ...this.tty.import}
+            });
         
-        bytes = await transformer.lowerI64Imports(bytes);
-
-        this.wasm = await WebAssembly.instantiate(bytes, {
-            wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
-            wasi_ext: {...this.proc.extlib, ...this.tty.extlib},
-            env: {...this.proc.import, ...this.tty.import}
-        });
+        this.wasm = {module: wamodule, instance: wainstance};
     
         // Start the WebAssembly WASI instance
         try {
@@ -133,15 +132,21 @@ class ExecCore extends EventEmitter {
     }
 
     async fetch(uri: string) {
+        if (typeof fetch !== 'undefined') {
+            const response = await fetch(uri);
+            return new Uint8Array(await response.arrayBuffer());
+        }
+        else {
+            const fs = require('fs');
+            return (0||fs.readFileSync)(uri);  // bypass Parcel
+        }
+    }
+
+    async fetchCompile(uri: string) {
         return memoizeMaybe(this.cached, uri, async (uri: string) => {
-            if (typeof fetch !== 'undefined') {
-                const response = await fetch(uri);
-                return new Uint8Array(await response.arrayBuffer());
-            }
-            else {
-                const fs = require('fs');
-                return (0||fs.readFileSync)(uri);  // bypass Parcel
-            }
+            var bytes = await this.fetch(uri);
+            bytes = await transformer.lowerI64Imports(bytes);
+            return WebAssembly.compile(bytes);
         });
     }
 
