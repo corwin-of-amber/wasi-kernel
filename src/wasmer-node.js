@@ -52,17 +52,6 @@ const wasi = new WASI({
   }
 });
 
-
-//console.log(wasi.wasiImport);
-
-// Make isatty(0) == 1
-wasi.FD_MAP.get(0).filetype = 2;
-wasi.FD_MAP.get(0).rights.base &= ~BigInt(0x24);
-// Make isatty(1) == 1
-wasi.FD_MAP.get(1).filetype = 2;
-wasi.FD_MAP.get(1).rights.base &= ~BigInt(0x24);
-
-
 // Read in the input Wasm file
 const wasmBuffer = fs.readFileSync('busy-wasi.wasm');
 

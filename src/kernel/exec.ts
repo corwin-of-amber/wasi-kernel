@@ -110,7 +110,8 @@ class ExecCore extends EventEmitter {
         // Fetch Wasm binary and instantiate WebAssembly instance
         var wamodule = await this.fetchCompile(wasmUri),
             wainstance = await WebAssembly.instantiate(wamodule, {
-                wasi_unstable: {...this.wasi.wasiImport, ...this.tty.overrideImport},
+                ...this.wasi.getImports(wamodule),
+                // wasi_unstable: {...this.tty.overrideImport},
                 wasi_ext: {...this.proc.extlib, ...this.tty.extlib},
                 env: {...this.proc.import, ...this.tty.import}
             });
