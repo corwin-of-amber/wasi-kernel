@@ -28,15 +28,14 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
         var p = this.free.pop();
         if (!p) {
             p = {
-                process: new WorkerProcess(null), //wasm, {argv, env}),
+                process: new WorkerProcess(null),
                 promise: null
             };
             p.process.on('tty:data', x => this.emit('worker:data', p, x));
             this.handleSpawns(p.process);
-            this.loader.populate(p);
+            this.loader.populate(p, {wasm, argv, env});
         }
-        if (env) p.process.opts.env = env;
-        p.process.exec(wasm, argv);
+        this.loader.exec(p, {wasm, argv, env});
         this.running.add(p);
         p.promise = p.process.waitFor().finally(() => {
             this.running.delete(p);
@@ -45,7 +44,12 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
         return p;
     }
 
-    populate(item: WorkerPoolItem) { }
+    populate(item: WorkerPoolItem, spawnArgs: {wasm: string, argv: string[], env?: {}}) { }
+
+    exec(item: WorkerPoolItem, spawnArgs: SpawnArgs) {
+        if (spawnArgs.env) item.process.opts.env = spawnArgs.env;
+        item.process.exec(spawnArgs.wasm, spawnArgs.argv);
+    }
 
     handleSpawns(parent: WorkerProcess) {
         parent.on('syscall', (e) => {
@@ -101,9 +105,11 @@ type WorkerPoolItem = {
 
 interface ProcessLoader {
     spawn(wasm: string, argv: string[], env?: {}): WorkerPoolItem;
-    populate(item: WorkerPoolItem): void;
+    populate(item: WorkerPoolItem, spawnArgs: SpawnArgs): void;
+    exec(item: WorkerPoolItem, spawnArgs: SpawnArgs): void;
 }
 
+type SpawnArgs = {wasm: string, argv: string[], env?: {}};
 
 
-export { WorkerPool, WorkerPoolItem, ProcessLoader }
+export { WorkerPool, WorkerPoolItem, ProcessLoader, SpawnArgs }

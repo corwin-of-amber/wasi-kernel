@@ -490,7 +490,7 @@ class LinkSharedVolume extends Link {
         if (blk[0] != 0) {
             var node = this.getNode();
             node.pull();
-            if (node.buf && node.ver !== this.ver) {
+            if (node.isDirectory() && node.buf && node.ver !== this.ver) {
                 var c: LinkData = JSON.parse(node.buf.toString('utf-8'));
                 this.vol.debug('- pull link', this.ino, c);
                 var children = {};

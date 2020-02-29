@@ -6,6 +6,7 @@ import stubs from './stubs';
 import { ExecCore } from '../exec';
 import { Buffer } from 'buffer';
 import { SharedQueue } from './queue';
+import { DynamicLoader } from './dyld';
 import { fs } from './fs';
 import * as constants from '@wasmer/wasi/lib/constants';
 
@@ -18,6 +19,7 @@ class Proc extends EventEmitter {
 
     sigvec: SignalVector
     childq: ChildProcessQueue
+    dyld: DynamicLoader
 
     childset: Set<number>
     onJoin: (onset: ExecvCall | Error) => void
@@ -41,6 +43,8 @@ class Proc extends EventEmitter {
 
         this.childq = new SharedQueue({data: new Uint32Array(new SharedArrayBuffer(4 * 128))});
         this.childset = new Set;
+
+        this.dyld = new DynamicLoader(core);
 
         this.pending = [];
     }
@@ -80,12 +84,17 @@ class Proc extends EventEmitter {
                 'setjmp', 'longjmp', 'sigsetjmp', 'siglongjmp',
                 'vfork', '__control_fork', 'wait', 'wait3', 'execve',
                 'sigkill', 'sigsuspend', 'sigaction',
-                'getpagesize', 'posix_spawn'])
+                'getpagesize', 'posix_spawn']),
+            ...this.dyld.import
         };
     }
 
     get extlib() {
-        return bindAll(this, ['trace', 'sorry', 'dupfd', 'progname_get', 'login_get']);
+        return {
+            ...bindAll(this, ['trace', 'sorry', 'dupfd',
+                'progname_get', 'login_get']),
+            ...this.dyld.extlib
+        };
     }
 
     get path() {

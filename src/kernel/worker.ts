@@ -23,6 +23,11 @@ onMessage(async (ev) => {
     if (ev.data.volume) {
         core.mountFs(SharedVolume.from(ev.data.volume));
     }
+    if (ev.data.dyld) {
+        for (let lib of ev.data.dyld.preload || []) {
+            core.proc.dyld.preload(lib.name, lib.uri, lib.reloc);
+        }
+    }
     if (ev.data.exec) {
         let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv,
             env = ev.data.opts && ev.data.opts.env;
