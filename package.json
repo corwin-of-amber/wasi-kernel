@@ -10,12 +10,11 @@
   },
   "dependencies": {
     "@babel/preset-env": "^7.6.3",
-    "@wasmer/wasi": "^0.4.5",
-    "@wasmer/wasm-transformer": "^0.4.5",
-    "@wasmer/wasmfs": "^0.4.5",
+    "@wasmer/wasi": "^0.10.0",
+    "@wasmer/wasm-transformer": "^0.10.0",
+    "@wasmer/wasmfs": "^0.10.0",
     "assert": "^2.0.0",
-    "buffer": "^5.4.3",
-    "memfs": "^3.0.4"
+    "buffer": "^5.4.3"
   },
   "devDependencies": {
     "@types/node": "^13.1.1",
