@@ -101,15 +101,15 @@ class Phase {
         return fn ? JSON.parse(fs.readFileSync(fn, 'utf-8')) : {};
     }
 
-    closest(basename, required = false, description = undefined) {
+    closest(basename, that_has = undefined) {
         var at = '';
         while (fs.realpathSync(at) != '/') {
             let loc = at + basename;
-            if (fs.existsSync(loc)) return loc;
+            if (fs.existsSync(loc) && 
+                (that_has ? fs.existsSync(path.join(loc, that_has)): true))
+                return loc;
             at = '../' + at;
         }
-        if (required)
-            throw new Error(`${description || `'${basename}'`} not found`);
     }
 
 }
@@ -142,6 +142,8 @@ class Compile extends Phase {
 
         if (wasmOut && config[wasmOut.fn] === 'skip')
             wasmOut = undefined;
+        if (wasmOut && !wasmOut.config && config["*"])
+            wasmOut.config = config["*"];
 
         this.report(wasmOut, wasmIn, flags);
 
@@ -189,7 +191,7 @@ class Compile extends Phase {
     }
 
     locateIncludes() {
-        return this.closest('wasi', true, 'wasi include directory');
+        return this.closest('wasi', 'etc.h') || '/tmp/wasi-kit-hijack/include';
     }
 
     locatePreconf() {
@@ -281,6 +283,8 @@ class Hijack extends Phase {
             for (let tool of ['clang', 'clang++', 'mv', 'ar']) {
                 fs.symlinkSync(script, path.join(basedir, tool));
             }
+            var inc = this.locateIncludes(script);
+            fs.symlinkSync(inc, path.join(basedir, 'include'));
         }
         process.env['PATH'] = `${basedir}:${process.env['PATH']}`;
     }
@@ -291,6 +295,24 @@ class Hijack extends Phase {
             return stat && stat.isFile() && (stat.mode & fs.constants.S_IXUSR);
         }
         catch (e) { return false; }
+    }
+
+    existsDir(p) {
+        try {
+            let stat = fs.statSync(p);
+            return stat && stat.isDirectory();
+        }
+        catch (e) { return false; }        
+    }
+
+    locateIncludes(script) {
+        var d = path.dirname(script);
+        while (d !== '/') {
+            var inc = path.join(d, 'include');
+            if (this.existsDir(inc)) return inc;
+            d = path.dirname(d);
+        }
+        throw new Error("wasi include directory not found");
     }
 }
 
