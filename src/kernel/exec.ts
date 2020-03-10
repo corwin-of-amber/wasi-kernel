@@ -110,8 +110,7 @@ class ExecCore extends EventEmitter {
         // Fetch Wasm binary and instantiate WebAssembly instance
         var wamodule = await this.fetchCompile(wasmUri),
             wainstance = await WebAssembly.instantiate(wamodule, {
-                //...this.wasi.getImports(wamodule),   // @fixme currently getImports() gets confused by wasi_ext
-                wasi_unstable: this.wasi.wasiImport,
+                ...this.getImports(wamodule),
                 wasi_ext: {...this.proc.extlib, ...this.tty.extlib},
                 env: {...this.proc.import, ...this.tty.import}
             });
@@ -149,6 +148,20 @@ class ExecCore extends EventEmitter {
             bytes = await transformer.lowerI64Imports(bytes);
             return WebAssembly.compile(bytes);
         });
+    }
+
+    getImports(wamodule: WebAssembly.Module) {
+        // @fixme should really use WASI.getImports(), but it gets confused
+        //   by the presence of the wasi_ext namespace
+        var ns = new Set<string>(), imports = {};
+        for (let imp of WebAssembly.Module.imports(wamodule)) {
+            if (imp.module.startsWith('wasi_') && imp.module !== 'wasi_ext')
+                ns.add(imp.module);
+        }
+        for (let nm of ns) {
+            imports[nm] = this.wasi.wasiImport;
+        }
+        return imports;
     }
 
     /**
