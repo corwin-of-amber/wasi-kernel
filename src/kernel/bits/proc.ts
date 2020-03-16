@@ -51,7 +51,7 @@ class Proc extends EventEmitter {
 
     init() {
         const newfd = this.newfd(),
-              fdcwd = {
+              fdcwd: any = {  /* type File is not exported by wasmer :( */
                   real: newfd,
                   rights: RIGHTS_ALL,  // uhm
                   filetype: constants.WASI_FILETYPE_DIRECTORY,
@@ -156,9 +156,8 @@ class Proc extends EventEmitter {
     }
 
     trace(message: i32) {
-        var buf = this.userGetCString(message), bufStr = '';
-        try { bufStr = buf.toString('utf-8') } catch(e) { }
-        console.warn('[trace]', buf, bufStr);
+        var buf = this.userGetCString(message);
+        this.core.trace(buf);
     }
 
     // ----------

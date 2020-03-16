@@ -9,7 +9,7 @@ import { SimplexStream } from './streams';
 import { Tty } from './bits/tty';
 import { Proc } from './bits/proc';
 
-import { utf8encode } from './bindings/utf8';
+import { utf8encode, utf8decode } from './bindings/utf8';
 import { isBrowser } from '../infra/arch';
 import { SharedVolume } from './services/shared-fs';
 
@@ -38,30 +38,31 @@ class ExecCore extends EventEmitter {
     cached: Map<string, Promise<WebAssembly.Module>> /* cached binaries */
 
     debug: (...args: any) => void
+    trace: (ui8a: Uint8Array) => void
 
     constructor(opts: ExecCoreOptions = {}) {
         super();
-        this.opts = opts;
+        this.opts = opts = Object.assign({}, defaults, opts);
         
         // Configure envrionment
-        this.stdin = new SimplexStream();
+        this.stdin = opts.stdin ? new SimplexStream() : null;
         this.wasmFs = new WasmFs();
 
         this.populateRootFs();
 
         this.proc = new Proc(this);
-        this.tty = new Tty(this);
+        this.tty = opts.tty ? new Tty(this) : null;
         this.cached = (opts.cacheBins !== false) ? new Map() : null;
 
         this.init();
         
         // Debug prints
         // @ts-ignore
-        this.debug = (global.process) ? /* console is funky in Node worker threads */
-             (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
-           : console.log;
-        this.tty.debug = this.debug;
-        this.proc.debug = this.debug;
+        this.debug = this._debugPrint();
+        this.trace = this._tracePrint();
+        if (this.tty)
+            this.tty.debug = (...a) => this.debug(...a);
+        this.proc.debug = (...a) => this.debug(...a);
     }
 
     init() {
@@ -109,11 +110,8 @@ class ExecCore extends EventEmitter {
 
         // Fetch Wasm binary and instantiate WebAssembly instance
         var wamodule = await this.fetchCompile(wasmUri),
-            wainstance = await WebAssembly.instantiate(wamodule, {
-                ...this.getImports(wamodule),
-                wasi_ext: {...this.proc.extlib, ...this.tty.extlib},
-                env: {...this.proc.import, ...this.tty.import}
-            });
+            wainstance = await WebAssembly.instantiate(wamodule,
+                this.getImports(wamodule));
         
         this.wasm = {module: wamodule, instance: wainstance};
     
@@ -161,6 +159,8 @@ class ExecCore extends EventEmitter {
         for (let nm of ns) {
             imports[nm] = this.wasi.wasiImport;
         }
+        imports['wasi_ext'] = {...this.proc.extlib, ...(this.tty ? this.tty.extlib : {})};
+        imports['env'] = {...this.proc.import, ...(this.tty ? this.tty.import : {})};
         return imports;
     }
 
@@ -206,7 +206,8 @@ class ExecCore extends EventEmitter {
             assert(fdIn == 0 && fdOut == 1 && fdErr == 2);
         }
 
-        volume.fds[0].read = this.stdin.read.bind(this.stdin);
+        if (this.stdin)
+            volume.fds[0].read = this.stdin.read.bind(this.stdin);
         volume.fds[1].write = d => this.emitWrite(1, d);
         volume.fds[2].write = d => this.emitWrite(2, d);
     }
@@ -226,9 +227,22 @@ class ExecCore extends EventEmitter {
         this.wasmFs.fs.mkdirSync("/home");
         this.wasmFs.fs.mkdirSync("/bin");
     }
+
+    _debugPrint() {
+        return (global.process) ? /* console is funky in Node worker threads */
+            (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
+          : console.log;
+    }
+
+    _tracePrint() {
+        return (global.process) ? /* console is funky in Node worker threads */
+            (ui8a: Uint8Array) => this.emitWrite(2, ui8a)
+          : (ui8a: Uint8Array) => console.warn('[trace]', ui8a, utf8decode(ui8a));
+    }
 }
 
 type ExecCoreOptions = {
+    stdin? : boolean,
     tty? : boolean | number | [number],
     funcTableSz? : number,
     env?: Environ,
@@ -236,6 +250,8 @@ type ExecCoreOptions = {
 };
 
 type Environ = {[k: string]: string};
+
+const defaults: ExecCoreOptions = {stdin: true};
 
 
 function memoize<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {

@@ -11,5 +11,14 @@ else {
     utf8encode = (text: string) => Buffer.from(text);
 }
 
+var utf8decode: (ui8a: Uint8Array) => string;
 
-export { utf8encode }
+if (typeof TextDecoder !== 'undefined') {
+    utf8decode = (ui8a: Uint8Array) =>
+        new TextDecoder().decode(ui8a);
+}
+else {
+    utf8decode = (ui8a: Uint8Array) => Buffer.from(ui8a).toString('utf-8');
+}
+
+export { utf8encode, utf8decode }

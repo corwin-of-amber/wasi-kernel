@@ -18,7 +18,7 @@ class DynamicLoader {
 
         if (this.dylibTable.def.has(path)) return;
 
-        WebAssembly.compileStreaming(fetch(uri)).then(w => {
+        return this.core.fetchCompile(uri).then(w => {
             this.dylibTable.def.set(path, new DynamicLibrary.Def(w, reloc));
         });
     }
