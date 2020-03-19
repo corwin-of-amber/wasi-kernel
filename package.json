@@ -2,7 +2,8 @@
   "name": "wasi-kernel",
   "version": "0.1.0",
   "description": "",
-  "main": "./dist/kernel.cjs.js",
+  "browser": "src/kernel/index.ts",
+  "main": "lib/kernel/index.js",
   "scripts": {
     "dev:browser": "npx parcel shell.html",
     "dev:node": "npx ts-node src/kernel/node.ts",

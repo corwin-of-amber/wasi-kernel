@@ -6,6 +6,10 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "downlevelIteration": true,
+    "declaration": true,
     "outDir": "build"
-  }
+  },
+  "include": [
+    "src/**/*"
+  ]
 }

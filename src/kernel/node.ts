@@ -7,7 +7,7 @@ if (!fs.existsSync(wasm)) {
     throw new Error(`The file ${wasm} doesn't exist`);
 }
 
-new WorkerProcess(wasm, __dirname+'/worker.js')
+new WorkerProcess(wasm)
     .on('error', (err, wasm)=> {
         console.error(`\nFailed to run '${wasm}';\n`);
         console.error(err);        

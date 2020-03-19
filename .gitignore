@@ -3,5 +3,6 @@ dist
 *.wasm
 *.wat
 .*.swp
-/build
 .cache
+/build
+/lib
