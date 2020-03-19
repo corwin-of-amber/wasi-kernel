@@ -143,6 +143,7 @@ namespace DynamicLibrary {
             for (let symbol of this.reloc.data) {
                 env[`g$${symbol}`] = () => instance.exports[symbol];  // <--- Emscripten
             }
+            Object.assign(env, this.reloc.js || {});
             return env;
         }
 
@@ -171,7 +172,11 @@ namespace DynamicLibrary {
         instance?: WebAssembly.Instance
     };
 
-    export type Relocations = {data: string[], func: string[]};
+    export type Relocations = {
+        data: string[]
+        func: string[]
+        js?: {[sym: string]: Function}
+    };
 
 }
 
@@ -185,4 +190,4 @@ function bindAll(instance: any, methods: string[]) {
 
 
 
-export {DynamicLoader}
+export { DynamicLoader, DynamicLibrary }
