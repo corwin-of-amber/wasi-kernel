@@ -9,7 +9,7 @@ class SharedQueue<A extends IntArray> {
 
     constructor(props: SharedQueueProps<A>) {
         this._data = props.data;
-        this._wait = props.wait || new Int32Array(new SharedArrayBuffer(4 * 2));
+        this._wait = props.wait || new Int32Array(new MaybeSharedArrayBuffer(4 * 2));
     }
 
     static from<A extends IntArray>(props: SharedQueueProps<A>) {
@@ -96,6 +96,10 @@ class SharedQueue<A extends IntArray> {
 }
 
 type SharedQueueProps<A> = { data: A, wait?: Int32Array };
+
+const MaybeSharedArrayBuffer = typeof SharedArrayBuffer != 'undefined'
+    ? SharedArrayBuffer : ArrayBuffer;
+
 
 
 export { SharedQueue, SharedQueueProps }

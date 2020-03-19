@@ -41,7 +41,7 @@ class Proc extends EventEmitter {
             data: ev
         }));
 
-        this.childq = new SharedQueue({data: new Uint32Array(new SharedArrayBuffer(4 * 128))});
+        this.childq = new SharedQueue({data: new Uint32Array(new MaybeSharedArrayBuffer(4 * 128))});
         this.childset = new Set;
 
         this.dyld = new DynamicLoader(core);
@@ -421,7 +421,7 @@ class SignalVector extends EventEmitter {
 
     constructor(_from: SignalVectorProps={}) {
         super();
-        this.wait = _from.wait || new Int32Array(new SharedArrayBuffer(4 * NSIG));
+        this.wait = _from.wait || new Int32Array(new MaybeSharedArrayBuffer(4 * NSIG));
         this.handlers = Array(NSIG);
     }
 
@@ -496,6 +496,9 @@ class Longjmp {
         this.val = val;
     }
 }
+
+const MaybeSharedArrayBuffer = typeof SharedArrayBuffer != 'undefined'
+    ? SharedArrayBuffer : ArrayBuffer;
 
 function bindAll(instance: any, methods: string[]) {
     return methods.reduce((d, m) =>

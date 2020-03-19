@@ -14,8 +14,8 @@ class SimplexStream extends EventEmitter {
     constructor(_from: SimplexStreamProps = {}) {
         super();
         this.queue = SharedQueue.from(_from.queue ||
-            {data: new Uint8Array(new SharedArrayBuffer(1024))});
-        this.meta = _from.meta || new Int32Array(new SharedArrayBuffer(4));
+            {data: new Uint8Array(new MaybeSharedArrayBuffer(1024))});
+        this.meta = _from.meta || new Int32Array(new MaybeSharedArrayBuffer(4));
         if (!_from.meta) this.length = -1;
         /* local state */
         this.pos = 0;
@@ -111,6 +111,10 @@ class TransformStreamDuplex extends EventEmitter {
     }
 
 }
+
+
+const MaybeSharedArrayBuffer = typeof SharedArrayBuffer != 'undefined'
+    ? SharedArrayBuffer : ArrayBuffer;
 
 
 
