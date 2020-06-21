@@ -3,6 +3,8 @@ dist
 *.wasm
 *.wat
 .*.swp
+*.tgz
 .cache
 /build
 /lib
+/npm-link
