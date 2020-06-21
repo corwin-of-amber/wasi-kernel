@@ -3,7 +3,7 @@ import assert from 'assert';
 import { WASI } from '@wasmer/wasi/lib';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
-import { createFsFromVolume } from 'memfs';
+import { IFs, createFsFromVolume } from 'memfs';
 
 import { SimplexStream } from './streams';
 import { Tty } from './bits/tty';
@@ -57,9 +57,13 @@ class ExecCore extends EventEmitter {
         this.init();
         
         // Debug prints
-        // @ts-ignore
-        this.debug = this._debugPrint();
-        this.trace = this._tracePrint();
+        if (this.opts.debug) {
+            this.debug = this._debugPrint();
+            this.trace = this._tracePrint();
+        }
+        else {
+            this.debug = this.trace = () => {};
+        }
         if (this.tty)
             this.tty.debug = (...a) => this.debug(...a);
         this.proc.debug = (...a) => this.debug(...a);
@@ -98,7 +102,7 @@ class ExecCore extends EventEmitter {
     }
 
     reset() {
-        this.stdin.reset();
+        if (this.stdin) this.stdin.reset();
         this.init();
     }
 
@@ -128,6 +132,8 @@ class ExecCore extends EventEmitter {
             this.exited = true;
         }
     }
+
+    get fs(): IFs { return this.wasmFs.fs; }
 
     async fetch(uri: string) {
         if (typeof fetch !== 'undefined') {
@@ -246,7 +252,8 @@ type ExecCoreOptions = {
     tty? : boolean | number | [number],
     funcTableSz? : number,
     env?: Environ,
-    cacheBins?: boolean
+    cacheBins?: boolean,
+    debug?: boolean
 };
 
 type Environ = {[k: string]: string};
