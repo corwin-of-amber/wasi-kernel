@@ -32,7 +32,7 @@ abstract class ProcessBase extends EventEmitter {
         if (this.setupEncoder()) {
             this.stdout = new TransformStreamDuplex(new TextDecoderStream());
         }
-        else if (typeof process !== 'undefined') {
+        else if (typeof process !== 'undefined' && process.stdin) {
             process.stdin.on('data', buf => this.stdin_raw.write(buf));
             this.stdout = <any>process.stdout;
         }

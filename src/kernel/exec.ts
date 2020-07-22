@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import assert from 'assert';
-import { WASI } from '@wasmer/wasi/lib';
+import { WASI } from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
 import { IFs, createFsFromVolume } from 'memfs';

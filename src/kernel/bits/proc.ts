@@ -330,7 +330,7 @@ class Proc extends EventEmitter {
 
     // - some helpers
 
-    userGetCString(addr: i32) {
+    userGetCString(addr: i32): Buffer {
         if (addr == 0) return null;
         let mem = Buffer.from(this.core.wasi.memory.buffer);
         return mem.slice(addr, mem.indexOf(0, addr));
