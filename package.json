@@ -4,6 +4,10 @@
   "description": "A POSIX-like runtime environment on top of Wasmer-JS",
   "browser": "src/kernel/index.ts",
   "main": "lib/kernel/index.js",
+  "scripts": {
+      "build:node": "./build-node.sh",
+      "build": "parcel build shell.html"
+  },
   "dependencies": {
     "@wasmer/wasi": "^0.11.2",
     "@wasmer/wasm-transformer": "^0.11.2",

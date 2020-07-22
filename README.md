@@ -1,5 +1,6 @@
 # wasi-kernel
-Simple process management for WASM modules running in workers, based on WASI
+Simple process management, streams, and shared file system for WASM modules
+running in workers, based on WASI and Wasmer-JS.
 
 ## Development
 
@@ -10,18 +11,29 @@ npm i
 
 ### Running in Node
 
-If you want to run this project in Node for development, you can do:
+If you want to run this project in Node for development, build the module with:
 
 ```sh
-npm run dev:node
+npm run build:node
 ```
+
+Compiled JavaScript files are placed in `lib/`.
 
 ### Running in Browser
 
-If you want to run this project in the Browser for development, you can do:
+Browser integration is possible with [Parcel](https://parceljs.org).
+Parcel's integrated server can be used for development.
 
 ```sh
-npm run dev:browser
+parcel shell.html
 ```
 
-This will start a server in http://localhost:1234/
+Then direct your browser to http://localhost:1234/.
+
+When developing your own project that uses wasi-kernel, employ standard `import` statements and run Parcel on your main entry point (HTML or JavaScript).
+
+```
+import { WorkerProcess } from 'wasi-kernel';
+
+p = new WorkerProcess('/uri/of/prog.wasm');
+```
