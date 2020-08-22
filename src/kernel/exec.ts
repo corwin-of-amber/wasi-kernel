@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import assert from 'assert';
-import { WASI } from '@wasmer/wasi';
+import { WASI, WASIConfig } from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
 import * as transformer from '@wasmer/wasm-transformer';
 import { IFs, createFsFromVolume } from 'memfs';
@@ -83,7 +83,8 @@ class ExecCore extends EventEmitter {
                 fs: this.wasmFs.fs,
                 path: this.proc.path
             },
-            preopenDirectories: {'/': '/', '.': '.'}
+            preopens: {'/': '/', '.': '.'},
+            ...this.extraWASIConfig()
         });
         this.exited = false;
 
@@ -200,6 +201,11 @@ class ExecCore extends EventEmitter {
         return {PATH: '/bin', PWD: '/home'};
     }
 
+    extraWASIConfig(): WASIConfig {
+        let o = this.opts;
+        return {traceSyscalls: o.trace && o.trace.syscalls}
+    }
+
     registerStdio() {
         var volume = this.wasmFs.volume;
 
@@ -253,7 +259,8 @@ type ExecCoreOptions = {
     funcTableSz? : number,
     env?: Environ,
     cacheBins?: boolean,
-    debug?: boolean
+    debug?: boolean,
+    trace?: {syscalls?: boolean}
 };
 
 type Environ = {[k: string]: string};
