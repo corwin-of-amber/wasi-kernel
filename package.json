@@ -5,8 +5,8 @@
   "browser": "src/kernel/index.ts",
   "main": "lib/kernel/index.js",
   "scripts": {
-      "build:node": "./build-node.sh",
-      "build": "parcel build shell.html"
+    "build": "parcel build src/kernel/worker.ts && ./build-node.sh",
+    "build:app": "parcel build shell.html"
   },
   "dependencies": {
     "@wasmer/wasi": "^0.11.2",
@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@types/node": "^13.1.1",
-    "typescript": "^3.6.4"
+    "typescript": "^4.0.2"
   },
   "author": "",
   "license": "ISC",

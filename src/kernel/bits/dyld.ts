@@ -12,7 +12,7 @@ class DynamicLoader {
         this.core = core;
     }
 
-    preload(path: string, uri: string, reloc: DynamicLibrary.Relocations) {
+    preload(path: string, uri: string, reloc?: DynamicLibrary.Relocations) {
         if (!this.dylibTable)
             this.dylibTable = new DynamicLibrary.Table();
 
@@ -99,11 +99,11 @@ namespace DynamicLibrary {
         module: WebAssembly.Module
         reloc: Relocations
 
-        stackSize: number = 1 << 16    // @todo
-        memBlocks: number = 10         // @todo
-        tblSize: number = 1024         // @todo
+        stackSize: number = 1 << 16    /** @todo */
+        memBlocks: number = 10         /** @todo */
+        tblSize: number = 1024         /** @todo */
 
-        constructor(module: WebAssembly.Module, reloc: Relocations) {
+        constructor(module: WebAssembly.Module, reloc: Relocations = {}) {
             this.module = module;
             this.reloc = reloc;
         }
@@ -116,42 +116,73 @@ namespace DynamicLibrary {
             core.wasi.memory.grow(this.memBlocks);
             core.proc.funcTable.grow(this.tblSize);
 
+            var globals = this.globals(this.module, core.wasm.instance);
             var instance = new WebAssembly.Instance(this.module, {
                 env: { 
                     memory: core.wasi.memory,
-                    table: core.proc.funcTable,
+                    table: core.proc.funcTable,         // <--- Emscripten
+                    __indirect_function_table: core.proc.funcTable,
                     __memory_base: mem_base,
                     __table_base: tbl_base,
-                    stackSave: () => mem_base, // stack grows down?
+                    __stack_pointer: this._mkglobal(mem_base), // stack grows down?
+                    stackSave: () => mem_base,          // <--- Emscripten
                     stackRestore: () => {},
-                    ...this.relocTable(core.wasm.instance),
-                    ...this.globals(this.module, mem_base, () => instance)
+                    ...this.relocTable(this.module, core.wasm.instance),
+                    ...this.emglobals(this.module, mem_base, core.wasm.instance, () => instance)
                 },
+                'GOT.mem': globals,
                 wasi_ext: core.proc.extlib
             });
+            this.globalsInit(instance, mem_base, globals);
+
             var init = instance.exports.__post_instantiate;     // <--- Emscripten
             if (init instanceof Function) init();
+            var ctors = instance.exports.__wasm_call_ctors;     // <--- Clang
+            if (ctors instanceof Function) ctors();
 
             return instance;
         }
 
-        relocTable(instance: WebAssembly.Instance) {
-            var env = {};
-            for (let symbol of this.reloc.func) {
-                env[symbol] = instance.exports[symbol];
-            }
-            for (let symbol of this.reloc.data) {
-                env[`g$${symbol}`] = () => instance.exports[symbol];  // <--- Emscripten
+        relocTable(module: WebAssembly.Module, main: WebAssembly.Instance) {
+            var imports = WebAssembly.Module.imports(module),
+                env = {};
+            for (let imp of imports) {
+                if (imp.kind === 'function') {
+                    var exp = main.exports[imp.name];
+                    if (exp instanceof Function)
+                        env[imp.name] = exp;
+                }
             }
             Object.assign(env, this.reloc.js || {});
             return env;
+        }
+
+        globals(module: WebAssembly.Module, main: WebAssembly.Instance) {
+            var imports = WebAssembly.Module.imports(module),
+                g = {};
+            for (let imp of imports) {
+                if (imp.kind === 'global') {
+                    var exp = main.exports[imp.name];
+                    g[imp.name] = this._mkglobal(
+                        exp instanceof WebAssembly.Global ? exp.value : undefined);
+                }
+            }
+            return g;
+        }
+
+        globalsInit(instance: WebAssembly.Instance, mem_base: number, globals: {[name: string]: WebAssembly.Global}) {
+            for (let g in globals) {
+                var exp = instance.exports[g];
+                if (exp instanceof WebAssembly.Global)
+                    globals[g].value = mem_base + exp.value;
+            }
         }
 
         /**
          * [internal] creates a table of self-referenced globals.
          * Specific to Emscripten.
          */
-        globals(module: WebAssembly.Module, mem_base: number, instance: () => WebAssembly.Instance) {
+        emglobals(module: WebAssembly.Module, mem_base: number, main: WebAssembly.Instance, instance: () => WebAssembly.Instance) {
             var imports = WebAssembly.Module.imports(module),
                 exports = WebAssembly.Module.exports(module),
                 resolve = (symbol: string) => (mem_base + +instance().exports[symbol]),
@@ -159,12 +190,18 @@ namespace DynamicLibrary {
             for (let imp of imports) {
                 if (imp.kind === 'function' && imp.name.startsWith('g$')) {
                     let name = imp.name.slice(2),
-                        bud = exports.find((wed) => wed.name == name);
-                    if (bud)
+                        bud: WebAssembly.ExportValue | WebAssembly.ModuleExportDescriptor;
+                    if (bud = main.exports[name])
+                        g[imp.name] = () => bud;
+                    else if (bud = exports.find((wed) => wed.name == name))
                         g[imp.name] = () => resolve(name)
                 }
             }
             return g;
+        }
+
+        _mkglobal(initial: i32 = 0xDEADBEEF) {
+            return new WebAssembly.Global({value:'i32', mutable:true}, initial);
         }
     }
 
@@ -173,8 +210,6 @@ namespace DynamicLibrary {
     };
 
     export type Relocations = {
-        data: string[]
-        func: string[]
         js?: {[sym: string]: Function}
     };
 
