@@ -3,18 +3,20 @@
 const child_process = require('child_process'),
       path = require('path'), fs = require('fs');
 
+const WASI_SDK = process.env['WASI_SDK'] || '/opt/wasi-sdk';
+
 const progs_native = {
-    'clang': '/usr/bin/clang',
-    'clang++': '/usr/bin/clang++',
-    'ar': '/usr/bin/ar',
-    'mv': '/bin/mv'
+    'clang':     '/usr/bin/clang',
+    'clang++':   '/usr/bin/clang++',
+    'ar':        '/usr/bin/ar',
+    'mv':        '/bin/mv'
 };
 
 const progs_wasi = {
-    'clang': '/opt/wasi-sdk/bin/clang',
-    'clang++': '/opt/wasi-sdk/bin/clang++',
-    'ar': '/opt/wasi-sdk/bin/llvm-ar',
-    'mv': '/bin/mv'
+    'clang':     `${WASI_SDK}/bin/clang`,
+    'clang++':   `${WASI_SDK}/bin/clang++`,
+    'ar':        `${WASI_SDK}/bin/llvm-ar`,
+    'mv':        '/bin/mv'
 };
 
 function main() {
