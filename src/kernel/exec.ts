@@ -155,9 +155,13 @@ class ExecCore extends EventEmitter {
         });
     }
 
+    /**
+     * @fixme should really use `WASI.getImports()`, but it gets confused
+     *    by the presence of the `wasi_ext` namespace. Need to rename to `wasik_ext`.
+     * @todo warn about unresolved symbols such as `__SIG_IGN` that stem
+     *    from not linking some wasi-sdk emulation lib (`-lwasi-emulated-signal`).
+     */
     getImports(wamodule: WebAssembly.Module) {
-        // @fixme should really use WASI.getImports(), but it gets confused
-        //   by the presence of the wasi_ext namespace
         var ns = new Set<string>(), imports = {};
         for (let imp of WebAssembly.Module.imports(wamodule)) {
             if (imp.module.startsWith('wasi_') && imp.module !== 'wasi_ext')

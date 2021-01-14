@@ -83,7 +83,7 @@ class Proc extends EventEmitter {
                 '__control_setjmp', '__control_setjmp_with_return',
                 'setjmp', 'longjmp', 'sigsetjmp', 'siglongjmp',
                 'vfork', '__control_fork', 'wait', 'wait3', 'execve',
-                'sigkill', 'sigsuspend', 'sigaction', '__SIG_IGN',
+                'sigkill', 'sigsuspend', 'sigaction',
                 'getpagesize', 'posix_spawn']),
             ...this.dyld.import
         };
@@ -388,8 +388,6 @@ class Proc extends EventEmitter {
             this.mem.setUint32(oact, 0);
         }
     }
-
-    __SIG_IGN() { } /** @todo __SIG_DFL, __SIG_ERR */
 
     // -----------
     // Memory Part
