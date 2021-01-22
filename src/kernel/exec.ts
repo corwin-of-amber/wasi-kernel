@@ -207,7 +207,6 @@ class ExecCore extends EventEmitter {
 
     extraWASIConfig(): WASIConfig {
         let o = this.opts;
-        // @ts-ignore until @wasmer/wasi 0.12
         return {traceSyscalls: o.trace && o.trace.syscalls}
     }
 

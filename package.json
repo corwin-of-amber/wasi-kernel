@@ -1,6 +1,6 @@
 {
   "name": "wasi-kernel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A POSIX-like runtime environment on top of Wasmer-JS",
   "browser": "src/kernel/index.ts",
   "main": "lib/kernel/index.js",
@@ -10,20 +10,20 @@
   "scripts": {
     "build": "parcel build src/kernel/worker.ts && ./build-node.sh",
     "build:app": "parcel build shell.html",
-    "pack": "rm -rf dist lib && npm run build && npm pack"
+    "dist": "rm -rf dist lib && npm run build && npm pack"
   },
   "files": [
-      "dist",
-      "include",
-      "lib",
-      "scripts",
-      "src",
-      "tsconfig.json"
+    "dist",
+    "include",
+    "lib",
+    "scripts",
+    "src",
+    "tsconfig.json"
   ],
   "dependencies": {
-    "@wasmer/wasi": "^0.11.2",
-    "@wasmer/wasm-transformer": "^0.11.2",
-    "@wasmer/wasmfs": "^0.11.2",
+    "@wasmer/wasi": "^0.12.0",
+    "@wasmer/wasm-transformer": "^0.12.0",
+    "@wasmer/wasmfs": "^0.12.0",
     "assert": "^2.0.0",
     "buffer": "^5.4.3",
     "memfs": "^3.0.4"
