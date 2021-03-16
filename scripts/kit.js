@@ -6,6 +6,8 @@ const child_process = require('child_process'),
 const WASI_SDK = process.env['WASI_SDK'] || '/opt/wasi-sdk';
 
 const progs_native = {
+    'gcc':       '/usr/bin/gcc',
+    'g++':       '/usr/bin/g++',
     'clang':     '/usr/bin/clang',
     'clang++':   '/usr/bin/clang++',
     'ar':        '/usr/bin/ar',
@@ -13,6 +15,8 @@ const progs_native = {
 };
 
 const progs_wasi = {
+    'gcc':       `${WASI_SDK}/bin/clang`,
+    'gcc++':     `${WASI_SDK}/bin/clang++`,
     'clang':     `${WASI_SDK}/bin/clang`,
     'clang++':   `${WASI_SDK}/bin/clang++`,
     'ar':        `${WASI_SDK}/bin/llvm-ar`,
@@ -24,6 +28,7 @@ function main() {
         args = process.argv.slice(2);
 
     const PHASES = {
+        'gcc': Compile, 'g++': Compile,
         'clang': Compile, 'clang++': Compile,
         'ar': Archive, 'mv': Move,
         'kit.js': Hijack, 'wasi-kit': Hijack
@@ -163,7 +168,7 @@ class Compile extends Phase {
     postProcessArgs(wasmOut, patched) {
         // Add WASI include directories
         var wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf();
-        patched.unshift(`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`);
+        patched.unshift(`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`, `--sysroot=${WASI_SDK}/share/wasi-sysroot`);
         if (wasiPreconf) patched.unshift(`-I${wasiPreconf}`);
 
         // Apply config settings
@@ -282,7 +287,7 @@ class Hijack extends Phase {
     mkBin(basedir, script) {
         if (!fs.existsSync(basedir)) {
             fs.mkdirSync(basedir);
-            for (let tool of ['clang', 'clang++', 'mv', 'ar']) {
+            for (let tool of Object.keys(progs_native)) {
                 fs.symlinkSync(script, path.join(basedir, tool));
             }
             var inc = this.locateIncludes(script);

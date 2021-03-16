@@ -37,8 +37,9 @@ class ExecCore extends EventEmitter {
 
     cached: Map<string, Promise<WebAssembly.Module>> /* cached binaries */
 
-    debug: (...args: any) => void
-    trace: (ui8a: Uint8Array) => void
+    debug: (...args: any) => void = nop
+    trace: {user: (ui8a: Uint8Array) => void,
+            syscalls: (...args: any) => void} = {user: nop, syscalls: nop}
 
     constructor(opts: ExecCoreOptions = {}) {
         super();
@@ -59,10 +60,10 @@ class ExecCore extends EventEmitter {
         // Debug prints
         if (this.opts.debug) {
             this.debug = this._debugPrint();
-            this.trace = this._tracePrint();
+            this.trace.user = this._tracePrint();
         }
-        else {
-            this.debug = this.trace = () => {};
+        if (this.opts.trace?.syscalls) {
+            this.trace.syscalls = this._tracePrintAny();
         }
         if (this.tty)
             this.tty.debug = (...a) => this.debug(...a);
@@ -83,7 +84,7 @@ class ExecCore extends EventEmitter {
                 fs: this.wasmFs.fs,
                 path: this.proc.path
             },
-            preopens: {'/': '/', '.': '.'},
+            preopens: {'/': '/'},
             ...this.extraWASIConfig()
         });
         this.exited = false;
@@ -253,7 +254,13 @@ class ExecCore extends EventEmitter {
     _tracePrint() {
         return (global.process) ? /* console is funky in Node worker threads */
             (ui8a: Uint8Array) => this.emitWrite(2, ui8a)
-          : (ui8a: Uint8Array) => console.warn('[trace]', ui8a, utf8decode(ui8a));
+          : (ui8a: Uint8Array) => console.warn('[trace]', utf8decode(ui8a), ui8a);
+    }
+
+    _tracePrintAny() {
+        return (global.process) ? /* console is funky in Node worker threads */
+            (...args: any) => this.emitWrite(2, utf8encode(args.toString()))
+          : (...args: any) => console.warn('[trace]', ...args);
     }
 }
 
@@ -270,6 +277,8 @@ type ExecCoreOptions = {
 type Environ = {[k: string]: string};
 
 const defaults: ExecCoreOptions = {stdin: true};
+
+const nop = () => {};
 
 
 function memoize<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {

@@ -2,13 +2,15 @@ import assert from 'assert';
 import path from 'path';
 import { EventEmitter } from 'events';
 
+import * as constants from '@wasmer/wasi/lib/constants';
+
 import stubs from './stubs';
 import { ExecCore } from '../exec';
 import { Buffer } from 'buffer';
 import { SharedQueue } from './queue';
 import { DynamicLoader } from './dyld';
 import { fs } from './fs';
-import * as constants from '@wasmer/wasi/lib/constants';
+import { utf8decode } from '../bindings/utf8';
 
 
 
@@ -50,7 +52,7 @@ class Proc extends EventEmitter {
     }
 
     init() {
-        const newfd = this.newfd(),
+        const newfd = this.newfd() + 1,  /* the +1 is a hack that I do not fully understand */
               fdcwd: any = {  /* type File is not exported by wasmer :( */
                   real: newfd,
                   rights: RIGHTS_ALL,  // uhm
@@ -79,7 +81,7 @@ class Proc extends EventEmitter {
             ...stubs,
             __indirect_function_table: this.funcTable, 
             ...bindAll(this, [
-                'chdir', 'getcwd', 'realpath', 'geteuid', 'strmode',
+                'geteuid', 'strmode',
                 '__control_setjmp', '__control_setjmp_with_return',
                 'setjmp', 'longjmp', 'sigsetjmp', 'siglongjmp',
                 'vfork', '__control_fork', 'wait', 'wait3', 'execve',
@@ -100,7 +102,7 @@ class Proc extends EventEmitter {
     get path() {
         return {...path,
             resolve: (dir: string, ...paths: string[]) => {
-                if (dir == '.') dir = this.core.env.PWD;
+                if (dir == '.') dir = this.core.env.PWD; /* for AT_FDCWD */
                 return path.resolve(dir || '/', ...paths)
             }
         };
@@ -126,19 +128,28 @@ class Proc extends EventEmitter {
     // Environment Part
     // ----------------
 
-    chdir(buf: i32) {
-        var d = this.userGetCString(buf).toString('utf-8');
-        this.core.env.PWD = d;
+    getenv_all() {
+        var wasik_environ = this.core.wasm.instance.exports.wasik_environ;
+        return (typeof wasik_environ === 'function')
+            ? this.parse_env(wasik_environ()) : {};
     }
 
-    getcwd(buf: i32, sz: i32) {
-        this.debug('getcwd', buf, sz);
-        /* @todo allocate buf if null */
-        if (buf === 0) throw 'getcwd(0): not implemented';
-        let ret = (this.core.env.PWD || '') + '\0';
-        if (ret.length > sz) throw {errno: 1, code: 'ERANGE'};
-        this.membuf.write(ret, buf);
-        return buf;
+    parse_env(environ: i32): {[name: string]: string} {
+        var d = {};
+        for (let envvar of this.userGetCStrings(environ)) {
+            this._parse_envvar(envvar, d);
+        }
+        return d;
+    }
+
+    _parse_envvar(buf: Uint8Array, d: object) {
+        try {
+            var text = new TextDecoder().decode(buf),
+                mo = text.match(/^(.*?)=(.*)$/);
+            if (mo) d[mo[1]] = mo[2];
+            else console.warn(`invalid envvar? '${text}'`);
+        }
+        catch (e) { console.warn('parse_env', e); }
     }
 
     progname_get(pbuf: i32) {
@@ -157,7 +168,7 @@ class Proc extends EventEmitter {
 
     trace(message: i32) {
         var buf = this.userGetCString(message);
-        this.core.trace(buf);
+        this.core.trace.user(buf);
     }
 
     // ----------
@@ -168,7 +179,7 @@ class Proc extends EventEmitter {
         var arg = this.userGetCString(file_name);
         /* @todo allocate resolved_name if null */
         if (resolved_name === 0) throw 'realpath(0): not implemented';
-        let ret = path.resolve(this.core.env.PWD, arg.toString('utf-8')) + '\0';
+        let ret = path.resolve(this.core.env.PWD, utf8decode(arg)) + '\0';
         if (ret.length > PATH_MAX) throw {errno: 1, code: 'ERANGE'};
         this.membuf.write(ret, resolved_name);
         return resolved_name;
@@ -180,7 +191,7 @@ class Proc extends EventEmitter {
     }
 
     dupfd(fd: i32, minfd: i32, cloexec: boolean) {
-        this.debug('dupfd', fd, minfd, cloexec);
+        this.core.trace.syscalls(`dupfd(${fd}, ${minfd}, ${cloexec}`);
         var desc = this.core.wasi.FD_MAP.get(fd);
         if (!desc) return -1;
 
@@ -245,7 +256,7 @@ class Proc extends EventEmitter {
     }
 
     sigsetjmp(env: i32, save_mask: i32) {
-        console.warn('sigsetjmp', env, save_mask);
+        this.core.trace.syscalls(`sigsetjmp(${env}, ${save_mask})`);
         return 0;
     }
 
@@ -254,15 +265,15 @@ class Proc extends EventEmitter {
     }
 
     vfork() {
+        this.core.trace.syscalls('vfork()');
         var pid = Math.max(0, ...this.childset) + 1;
         this.childset.add(pid);
         this.onJoin = (onset: ExecvCall | Error) => {
             if (onset instanceof ExecvCall) {
                 let e = onset;
-                this.debug('execv: ', e.prog, e.argv.map(x => x.toString('utf-8')));
                 this.emit('syscall', {
                     func: 'spawn', 
-                    data: {pid, execv: e, env: this.core.env}
+                    data: {pid, execv: e, env: this.getenv_all()}
                 });
             }
             else throw onset;
@@ -284,17 +295,17 @@ class Proc extends EventEmitter {
     }
 
     execve(path: i32, argv: i32, envp: i32) {
-        this.debug(`execv(${path}, ${argv}, ${envp})`);
+        this.core.trace.syscalls(`execv(${path}, ${argv}, ${envp})`);
         throw new ExecvCall(
-            this.userGetCString(path).toString('utf-8'),
+            utf8decode(this.userGetCString(path)),
             this.userGetCStrings(argv),
             this.userGetCStrings(envp));
     }
 
     posix_spawn(pid: i32, path: i32, file_actions: i32, attrp: i32,
                 argv: i32, envp: i32) {
-        var pathStr = this.userGetCString(path).toString('utf-8');
-        this.debug(`posix_spawn(${pid}, "${pathStr}", ${file_actions}, ${attrp}, ...})`);
+        var pathStr = utf8decode(this.userGetCString(path));
+        this.core.trace.syscalls(`posix_spawn(${pid}, "${pathStr}", ${file_actions}, ${attrp}, ...})`);
         var execv = new ExecvCall(
                         pathStr,
                         this.userGetCStrings(argv),
@@ -310,12 +321,12 @@ class Proc extends EventEmitter {
     }
 
     wait(stat_loc: i32) {
-        this.debug(`wait(${stat_loc})`);
+        this.core.trace.syscalls(`wait(${stat_loc})`);
         return this.waitBase(stat_loc);
     }
 
     wait3(stat_loc: i32, options: i32, rusage: i32) {
-        this.debug(`wait3(${stat_loc}, ${options}, ${rusage})`);
+        this.core.trace.syscalls(`wait3(${stat_loc}, ${options}, ${rusage})`);
         return this.waitBase(stat_loc);
     }
     
@@ -379,13 +390,15 @@ class Proc extends EventEmitter {
     }
 
     sigaction(signum: i32, act: i32, oact: i32) {
-        this.debug('sigaction', signum, act, oact);
-        var sa_handler = this.mem.getUint32(act, true);
-        var h = <sighandler>this.funcTable.get(sa_handler);
-        this.debug(' -->', sa_handler, h);
-        this.sigvec.handlers[signum] = h;
+        this.core.trace.syscalls(`sigaction(${signum}, ${act}, ${oact})`);
+        if (act != 0) {
+            var sa_handler = this.mem.getUint32(act, true);
+            var h = <sighandler>this.funcTable.get(sa_handler);
+            this.core.trace.syscalls(' -->', sa_handler, h);
+            this.sigvec.handlers[signum] = h;
+        }
         if (oact != 0) {
-            this.mem.setUint32(oact, 0);
+            this.mem.setUint32(oact, 0); /** @todo get previous sa_handler */
         }
     }
 

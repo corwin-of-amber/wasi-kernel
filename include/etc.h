@@ -1,12 +1,5 @@
 #pragma once
 
-#define __NEED_sigset_t
-
-#include <stdint.h>
-#include <sys/types.h>
-#include <bits/alltypes.h>
-
-
 #ifdef __cplusplus
 #define restrict
 #define WASI_C_START extern "C" {
@@ -17,19 +10,18 @@
 #endif
 
 
+#define __NEED_sigset_t
+
+#include <stdint.h>
+#include <sys/types.h>
+#include <bits/alltypes.h>
+
+
 #define __WASI_EXTERNAL_NAME(name) \
     __attribute__((__import_module__("wasi_ext"), __import_name__(#name)))
 
 
 typedef struct _IO_FILE FILE;
-
-
-#ifndef NSIG
-static const int NSIG = 32;
-static void (* const SIG_DFL)(int) = 0;
-static void (* const SIG_IGN)(int) = 0;
-static void (* const SIG_ERR)(int) = 0;
-#endif
 
 static const int F_DUPFD = 0;
 #define AT_FDCWD (-100)
@@ -119,6 +111,28 @@ static inline off_t
      __wasilibc_tell(int fd) {
           return 0;
      }
+
+/**
+ * Startup function; initializes cwd from environ PWD if it exists.
+ * Called at initialization, must be called after `__wasilibc_initialize_environ_eagerly`
+ * (which is `((constructor(50)))`).
+ */
+ __attribute__((constructor(100)))
+int __attribute__((weak)) wasik_startup() {
+     extern char *getenv (const char *);
+     char *cwd = getenv("PWD");
+
+     extern char *__wasilibc_cwd;
+     extern char *strdup(const char *);
+     if (cwd) chdir(cwd); /** @todo why does this not work?: `__wasilibc_cwd = strdup(cwd);` */
+     /** @oops strictly speaking, need to set `__wasilibc_cwd_mallocd = 1` but it's private */
+     return 0;
+}
+
+char **__attribute__((export_name("wasik_environ"),weak)) __wasik_environ() {
+     extern char **__wasilibc_environ;
+     return __wasilibc_environ;
+}
 
 typedef void (*sig_t) (int);
 sig_t

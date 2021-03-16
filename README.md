@@ -2,6 +2,8 @@
 Simple process management, streams, and shared file system for WASM modules
 running in workers, based on WASI and Wasmer-JS.
 
+The current version is compatible with [wasi-sdk](https://github.com/WebAssembly/wasi-sdk) 12.
+
 ## Development
 
 To startup the project, you first need to do:
