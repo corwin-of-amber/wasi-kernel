@@ -4,37 +4,34 @@ running in workers, based on WASI and Wasmer-JS.
 
 The current version is compatible with [wasi-sdk](https://github.com/WebAssembly/wasi-sdk) 12.
 
-## Development
+## Build
 
 To startup the project, you first need to do:
 ```sh
 npm i
 ```
 
-### Running in Node
-
-If you want to run this project in Node for development, build the module with:
-
+The build uses [Parcel](https://parceljs.org). It is not listed as a project dependency due to its size. Install it globally instead via:
 ```sh
-npm run build:node
+npm i -g parcel
 ```
 
-Compiled JavaScript files are placed in `lib/`.
+(The project was developed with Parcel 1.12.4, and may not be compatible with 2.x, if this version ever materializes.)
 
-### Running in Browser
-
-Browser integration is possible with [Parcel](https://parceljs.org).
-Parcel's integrated server can be used for development.
-
+To build Node.js modules and the Web worker:
 ```sh
-parcel shell.html
+npm run build
 ```
 
-Then direct your browser to http://localhost:1234/.
+You can quickly test your build by running `parcel shell.html`, then directing your browser to http://localhost:1234/.
+
+## Use
 
 When developing your own project that uses wasi-kernel, employ standard `import` statements and run Parcel on your main entry point (HTML or JavaScript).
+When targeting the browser, bundlers are directed to the source entry point
+(`src/kernel/index.ts`), which exposes the public APIs.
 
-```
+```js
 import { WorkerProcess } from 'wasi-kernel';
 
 p = new WorkerProcess('/uri/of/prog.wasm');
