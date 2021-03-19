@@ -155,7 +155,7 @@ class Compile extends Phase {
         this.report(wasmOut, wasmIn, flags);
 
         if (wasmOut) {
-            return this.postProcessArgs(wasmOut, patched);
+            return this.postProcessArgs(wasmOut, flags, patched);
         }
     }
 
@@ -165,11 +165,23 @@ class Compile extends Phase {
             {fn: cInput.replace(/[.]c$/, '.wo'), type: 'obj'};
     }
 
-    postProcessArgs(wasmOut, patched) {
+    getIncludeFlags() {
+        var wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf(),
+            flags = [`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`, `--sysroot=${WASI_SDK}/share/wasi-sysroot`];
+        if (wasiPreconf) flags.unshift(`-I${wasiPreconf}`);
+        return flags;
+    }
+
+    getLinkFlags() {
+        var wasiInc = this.locateIncludes();
+        return [`${wasiInc}/bits/startup.c`];
+    }
+
+    postProcessArgs(wasmOut, flags, patched) {
         // Add WASI include directories
-        var wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf();
-        patched.unshift(`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`, `--sysroot=${WASI_SDK}/share/wasi-sysroot`);
-        if (wasiPreconf) patched.unshift(`-I${wasiPreconf}`);
+        patched.unshift(...this.getIncludeFlags());
+        if (!flags['-c'])
+            patched.unshift(...this.getLinkFlags());
 
         // Apply config settings
         if (wasmOut.config) {

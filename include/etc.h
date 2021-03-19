@@ -112,28 +112,6 @@ static inline off_t
           return 0;
      }
 
-/**
- * Startup function; initializes cwd from environ PWD if it exists.
- * Called at initialization, must be called after `__wasilibc_initialize_environ_eagerly`
- * (which is `((constructor(50)))`).
- */
- __attribute__((constructor(100)))
-int __attribute__((weak)) wasik_startup() {
-     extern char *getenv (const char *);
-     char *cwd = getenv("PWD");
-
-     extern char *__wasilibc_cwd;
-     extern char *strdup(const char *);
-     if (cwd) chdir(cwd); /** @todo why does this not work?: `__wasilibc_cwd = strdup(cwd);` */
-     /** @oops strictly speaking, need to set `__wasilibc_cwd_mallocd = 1` but it's private */
-     return 0;
-}
-
-char **__attribute__((export_name("wasik_environ"),weak)) __wasik_environ() {
-     extern char **__wasilibc_environ;
-     return __wasilibc_environ;
-}
-
 typedef void (*sig_t) (int);
 sig_t
     signal(int sig, sig_t func);
