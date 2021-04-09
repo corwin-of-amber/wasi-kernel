@@ -1,3 +1,6 @@
+/** @oops in case this file is compiled with clang++ */
+WASI_C_START
+
 /* intentionally avoiding system #includes because these may be
  * overridden by `-I`, e.g. in gnulib. */
 extern char *getenv(const char*);
@@ -23,3 +26,5 @@ char **__attribute__((export_name("wasik_environ"),weak)) __wasik_environ() {
      extern char **__wasilibc_environ;
      return __wasilibc_environ;
 }
+
+WASI_C_END

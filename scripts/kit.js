@@ -3,7 +3,8 @@
 const child_process = require('child_process'),
       path = require('path'), fs = require('fs');
 
-const WASI_SDK = process.env['WASI_SDK'] || '/opt/wasi-sdk';
+const WASI_SDK = process.env['WASI_SDK'] || '/opt/wasi-sdk',
+      WASI_KIT_FLAGS = (process.env['WASI_KIT'] || '').split(',').filter(x => x);
 
 const progs_native = {
     'gcc':       '/usr/bin/gcc',
@@ -16,7 +17,7 @@ const progs_native = {
 
 const progs_wasi = {
     'gcc':       `${WASI_SDK}/bin/clang`,
-    'gcc++':     `${WASI_SDK}/bin/clang++`,
+    'g++':       `${WASI_SDK}/bin/clang++`,
     'clang':     `${WASI_SDK}/bin/clang`,
     'clang++':   `${WASI_SDK}/bin/clang++`,
     'ar':        `${WASI_SDK}/bin/llvm-ar`,
@@ -99,7 +100,9 @@ class Phase {
     }
 
     _exec(prog, args) {
-        //console.log(prog, args);
+        if (WASI_KIT_FLAGS.includes('verbose')) {
+            console.log('[wasi-kit]  ', prog, args.join(' '));
+        }
         return child_process.execFileSync(prog, args, {stdio: 'inherit'});
     }
 
@@ -123,19 +126,44 @@ class Phase {
 
 class Compile extends Phase {
 
-    patchArgs(args) {
-        var config = this.getConfig();
+    run(prog, args) {
+        this.parseArgs(args);
+        if (!this._skipNative())
+            this.runNative(prog, args);
+        this.runWasm(prog, args);
+    }
 
-        var patched = [], wasmOut, wasmIn = [], flags = {};
+    _skipNative() {
+        var config = this.getConfig(),
+            out = this.flags['-o'];
+
+        return (out && config[out] && (config[out].native === true));
+    }
+
+    parseArgs(args) {
+        var flags = {};
         for (let i = 0; i < args.length; i++) {
             let arg = args[i];
-            patched.push(patchArgument(arg, config, wasmIn));
             if (arg == '-c') {
                 flags['-c'] = true;
             }
             else if (arg == '-o') {
                 i++;
                 flags['-o'] = args[i];
+            }
+        }
+        this.flags = flags;
+    }
+
+    patchArgs(args) {
+        var config = this.getConfig(), flags = this.flags;
+
+        var patched = [], wasmOut, wasmIn = [];
+        for (let i = 0; i < args.length; i++) {
+            let arg = args[i];
+            patched.push(patchArgument(arg, config, wasmIn));
+            if (arg == '-o') {
+                i++;
                 wasmOut = patchOutput(args[i], config);
                 patched.push(wasmOut ? wasmOut.fn : '/dev/null');
             }
@@ -167,7 +195,9 @@ class Compile extends Phase {
 
     getIncludeFlags() {
         var wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf(),
-            flags = [`-I${wasiInc}`, '-include', `${wasiInc}/etc.h`, `--sysroot=${WASI_SDK}/share/wasi-sysroot`];
+            flags = [`-I${wasiInc}`, `-I${wasiInc}/c++`,
+                     '-include', `${wasiInc}/etc.h`,
+                     `--sysroot=${WASI_SDK}/share/wasi-sysroot`];
         if (wasiPreconf) flags.unshift(`-I${wasiPreconf}`);
         return flags;
     }
