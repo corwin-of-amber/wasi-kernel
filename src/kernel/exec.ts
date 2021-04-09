@@ -7,7 +7,8 @@ import { IFs, createFsFromVolume } from 'memfs';
 
 import { SimplexStream } from './streams';
 import { Tty } from './bits/tty';
-import { Proc } from './bits/proc';
+import { Proc, ProcOptions } from './bits/proc';
+import stubs from './bits/stubs';
 
 import { utf8encode, utf8decode } from './bindings/utf8';
 import { isBrowser } from '../infra/arch';
@@ -51,12 +52,14 @@ class ExecCore extends EventEmitter {
 
         this.populateRootFs();
 
-        this.proc = new Proc(this);
+        this.proc = new Proc(this, opts.proc);
         this.tty = opts.tty ? new Tty(this) : null;
         this.cached = (opts.cacheBins !== false) ? new Map() : null;
 
         this.init();
-        
+    }
+
+    initTraces() {
         // Debug prints
         if (this.opts.debug) {
             this.debug = this._debugPrint();
@@ -68,6 +71,8 @@ class ExecCore extends EventEmitter {
         if (this.tty)
             this.tty.debug = (...a) => this.debug(...a);
         this.proc.debug = (...a) => this.debug(...a);
+
+        stubs.debug = this.debug; // global :(
     }
 
     init() {
@@ -113,6 +118,8 @@ class ExecCore extends EventEmitter {
 
         if (argv) this.argv.splice(0, Infinity, ...argv);
         if (env)  Object.assign(this.env, env);
+        this.proc.opts = this.opts.proc || {}; // in case new options where set
+        this.initTraces();
 
         // Fetch Wasm binary and instantiate WebAssembly instance
         var wamodule = await this.fetchCompile(wasmUri),
@@ -267,7 +274,7 @@ class ExecCore extends EventEmitter {
 type ExecCoreOptions = {
     stdin? : boolean,
     tty? : boolean | number | [number],
-    funcTableSz? : number,
+    proc?: ProcOptions,
     env?: Environ,
     cacheBins?: boolean,
     debug?: boolean,

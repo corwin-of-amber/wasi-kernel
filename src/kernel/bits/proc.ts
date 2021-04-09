@@ -67,7 +67,6 @@ class Proc extends EventEmitter {
     }
 
     get import() {
-        stubs.debug = this.debug; // global :(
         this.sigvec.debug = this.debug;
 
         if (!this.funcTable) {
@@ -520,4 +519,4 @@ function bindAll(instance: any, methods: string[]) {
 
 
 
-export { Proc, SignalVector, ChildProcessQueue }
+export { Proc, ProcOptions, SignalVector, ChildProcessQueue }

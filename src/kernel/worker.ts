@@ -31,6 +31,7 @@ onMessage(async (ev) => {
     if (ev.data.exec) {
         let wasm = ev.data.exec, argv = ev.data.opts && ev.data.opts.argv,
             env = ev.data.opts && ev.data.opts.env;
+        Object.assign(core.opts, ev.data.opts);
         try {
             let exitcode = await core.start(wasm, argv, env);
             postMessage({event: 'exit', arg: {code: exitcode}});
