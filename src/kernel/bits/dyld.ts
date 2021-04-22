@@ -1,4 +1,5 @@
 import { ExecCore } from '../exec';
+import delegation from './autogen/delegation';
 
 
 
@@ -43,7 +44,7 @@ class DynamicLoader {
         if (def) {
             var instance = def.instantiate(this.core),
                 handle = this.dylibTable.ref.size + 1;
-            this.dylibTable.ref.set(handle, {instance});
+            this.dylibTable.ref.set(handle, {def, instance});
             return handle;
         }
         else {
@@ -56,10 +57,15 @@ class DynamicLoader {
         //this.core.debug(`dlsym(${handle}, "${symbol_str}")`);
         var ref = this.dylibTable.ref.get(handle);
         if (ref) {
+            /* search in WASM instance */
             var sym = ref.instance.exports[symbol_str];
             if (sym && sym instanceof Function) {
                 return this.allocateFunc(sym);
             }
+            /* search in JS imports */
+            var js = ref.def.reloc?.js?.[symbol_str],
+                d = js && this.allocateDelegate(js);
+            if (d !== undefined) return d;
         }
         return 0;  // @todo set error message in dlerror
     }
@@ -73,6 +79,18 @@ class DynamicLoader {
         var h = this.core.proc.funcTable.grow(1);
         this.core.proc.funcTable.set(h, func);
         return h;        
+    }
+
+    allocateDelegate(func: Function) {
+        var bin = delegation[func.length];
+        if (bin) {
+            var mod = new WebAssembly.Module(new Uint8Array(bin)),
+                inst = new WebAssembly.Instance(mod, {env: {delegate: func}});
+            return this.allocateFunc(<Function>inst.exports['glue']);
+        }
+        else {
+            console.warn(`cannot delegate function with ${func.length} arguments:`, func);
+        }
     }
 
     // - some helpers from Proc
@@ -128,12 +146,12 @@ namespace DynamicLibrary {
                     stackSave: () => mem_base,          // <--- Emscripten
                     stackRestore: () => {},
                     ...this.relocTable(this.module, core.wasm.instance),
-                    ...this.emglobals(this.module, mem_base, core.wasm.instance, () => instance)
+                    ...this.emglobals(this.module, mem_base, core.wasm.instance, () => instance),
                 },
-                'GOT.mem': globals,
+                ...globals,
                 wasi_ext: core.proc.extlib
             });
-            this.globalsInit(instance, mem_base, globals);
+            this.globalsInit(instance, mem_base, globals['GOT.mem'] || {});
 
             var init = instance.exports.__post_instantiate;     // <--- Emscripten
             if (init instanceof Function) init();
@@ -148,7 +166,7 @@ namespace DynamicLibrary {
                 env = {};
             for (let imp of imports) {
                 if (imp.kind === 'function') {
-                    var exp = main.exports[imp.name];
+                    var exp = main.exports[EM_ALIASES[imp.name] || imp.name];
                     if (exp instanceof Function)
                         env[imp.name] = exp;
                 }
@@ -159,18 +177,19 @@ namespace DynamicLibrary {
 
         globals(module: WebAssembly.Module, main: WebAssembly.Instance) {
             var imports = WebAssembly.Module.imports(module),
-                g = {};
+                g: Globals = {};
             for (let imp of imports) {
-                if (imp.kind === 'global') {
+                if (imp.kind === 'global' && imp.module.match(EM_GLOBAL_NS)) {
                     var exp = main.exports[imp.name];
-                    g[imp.name] = this._mkglobal(
+                    g[imp.module] ??= {};
+                    g[imp.module][imp.name] = this._mkglobal(
                         exp instanceof WebAssembly.Global ? exp.value : undefined);
                 }
             }
             return g;
         }
 
-        globalsInit(instance: WebAssembly.Instance, mem_base: number, globals: {[name: string]: WebAssembly.Global}) {
+        globalsInit(instance: WebAssembly.Instance, mem_base: number, globals: GlobalsModule) {
             for (let g in globals) {
                 var exp = instance.exports[g];
                 if (exp instanceof WebAssembly.Global)
@@ -206,6 +225,7 @@ namespace DynamicLibrary {
     }
 
     export type Ref = {
+        def: Def
         instance?: WebAssembly.Instance
     };
 
@@ -217,6 +237,12 @@ namespace DynamicLibrary {
 
 
 type i32 = number;
+
+type GlobalsModule = {[name: string]: WebAssembly.Global};
+type Globals = {[module: string]: GlobalsModule};
+
+const EM_GLOBAL_NS = /^GOT[.]/,  /* GOT.mem & GOT.func */
+      EM_ALIASES = {fiprintf: 'fprintf'};
 
 function bindAll(instance: any, methods: string[]) {
     return methods.reduce((d, m) =>
