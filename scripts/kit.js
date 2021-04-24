@@ -12,7 +12,8 @@ const progs_native = {
     'clang':     '/usr/bin/clang',
     'clang++':   '/usr/bin/clang++',
     'ar':        '/usr/bin/ar',
-    'mv':        '/bin/mv'
+    'mv':        '/bin/mv',
+    'ln':        '/bin/ln'
 };
 
 const progs_wasi = {
@@ -21,7 +22,8 @@ const progs_wasi = {
     'clang':     `${WASI_SDK}/bin/clang`,
     'clang++':   `${WASI_SDK}/bin/clang++`,
     'ar':        `${WASI_SDK}/bin/llvm-ar`,
-    'mv':        '/bin/mv'
+    'mv':        '/bin/mv',
+    'ln':        '/bin/ln'
 };
 
 function main() {
@@ -31,7 +33,8 @@ function main() {
     const PHASES = {
         'gcc': Compile, 'g++': Compile,
         'clang': Compile, 'clang++': Compile,
-        'ar': Archive, 'mv': Move,
+        'ar': Archive,
+        'mv': FileOp, 'ln': FileOp, 'cp': FileOp,
         'kit.js': Hijack, 'wasi-kit': Hijack
     },
         phase = PHASES[prog];
@@ -144,8 +147,8 @@ class Compile extends Phase {
         var flags = {};
         for (let i = 0; i < args.length; i++) {
             let arg = args[i];
-            if (arg == '-c') {
-                flags['-c'] = true;
+            if (arg == '-c' || arg == '-shared') {
+                flags[arg] = true;
             }
             else if (arg == '-o') {
                 i++;
@@ -203,14 +206,13 @@ class Compile extends Phase {
     }
 
     getLinkFlags() {
-        var wasiInc = this.locateIncludes();
-        return [`${wasiInc}/bits/startup.c`];
+        return this.buildStartupLib();
     }
 
     postProcessArgs(wasmOut, flags, patched) {
         // Add WASI include directories
         patched.unshift(...this.getIncludeFlags());
-        if (!flags['-c'])
+        if (!flags['-c'] && !flags['-shared'])
             patched.unshift(...this.getLinkFlags());
 
         // Apply config settings
@@ -247,6 +249,17 @@ class Compile extends Phase {
         return this.closest('wasi-preconf');
     }
 
+    buildStartupLib() {
+        var outdir = '/tmp/wasi-kit-hijack',
+            startup_c = `${this.locateIncludes()}/bits/startup.c`,
+            startup_o = path.join(outdir, 'startup.o');
+        if (!fs.existsSync(outdir))
+            fs.mkdirSync(outdir);
+        this._exec(progs_wasi['clang'], ['-c', startup_c, '-o', startup_o,
+            ...this.getIncludeFlags()]);
+        return [startup_o];
+    }
+
     matches(x, patterns) {
         function m(x, pat) {
             if (pat.startsWith("re:"))
@@ -259,7 +272,10 @@ class Compile extends Phase {
 
 }
 
-class Move extends Phase {
+/**
+ * Move, copy, or symlink object files.
+ */
+class FileOp extends Phase {
 
     patchArgs(args) {
         var patched = [];
