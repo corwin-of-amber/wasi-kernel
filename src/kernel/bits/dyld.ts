@@ -149,7 +149,7 @@ namespace DynamicLibrary {
                     ...this.emglobals(this.module, mem_base, core.wasm.instance, () => instance),
                 },
                 ...globals,
-                wasi_ext: core.proc.extlib
+                wasik_ext: core.proc.extlib
             });
             this.globalsInit(instance, mem_base, globals['GOT.mem'] || {});
 

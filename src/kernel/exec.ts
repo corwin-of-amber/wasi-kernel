@@ -164,28 +164,20 @@ class ExecCore extends EventEmitter {
     }
 
     /**
-     * @fixme should really use `WASI.getImports()`, but it gets confused
-     *    by the presence of the `wasi_ext` namespace. Need to rename to `wasik_ext`.
      * @todo warn about unresolved symbols such as `__SIG_IGN` that stem
      *    from not linking some wasi-sdk emulation lib (`-lwasi-emulated-signal`).
      */
     getImports(wamodule: WebAssembly.Module) {
-        var ns = new Set<string>(), imports = {};
-        for (let imp of WebAssembly.Module.imports(wamodule)) {
-            if (imp.module.startsWith('wasi_') && imp.module !== 'wasi_ext')
-                ns.add(imp.module);
-        }
-        for (let nm of ns) {
-            imports[nm] = this.wasi.wasiImport;
-        }
-        imports['wasi_ext'] = {...this.proc.extlib, ...(this.tty ? this.tty.extlib : {})};
-        imports['env'] = {...this.proc.import, ...(this.tty ? this.tty.import : {})};
-        return imports;
+        return {
+            ...this.wasi.getImports(wamodule),
+            wasik_ext: {...this.proc.extlib, ...this.tty?.extlib},
+            env: {...this.proc.import, ...this.tty?.import}
+        };
     }
 
     /**
      * Returns an object that can be shared with a parent thread
-     * (via e.g. Worker.postMessage) to communicate with this core.
+     * (via e.g. `Worker.postMessage`) to communicate with this core.
      */
     share(): any {
         return {
@@ -303,7 +295,7 @@ function memoizeMaybe<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {
 
 
 /**
- * @wasmer/wasi export this class as ES5  :/
+ * `@wasmer/wasi` exports this class as ES5  :/
  * This kills instanceof. So redefining it here. -_-
  */
 export class WASIExitError /* extends Error*/ {
