@@ -4,8 +4,10 @@ WASI_C_START
 
 
 struct group {
-    int gr_gid;
-    const char *gr_name;
+	char *gr_name;
+	char *gr_passwd;
+	gid_t gr_gid;
+	char **gr_mem;
 };
 
 struct group *

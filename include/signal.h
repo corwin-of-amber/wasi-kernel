@@ -28,11 +28,25 @@ struct  sigaction {
 
 int
     sigaction(int sig, const struct sigaction *restrict act, struct sigaction *restrict oact);
-
+int
+    sigwait(const sigset_t *restrict set, int *restrict sig);
+int
+    sigpending(sigset_t *set);
 
 static const int SIG_BLOCK   =  0;
 static const int SIG_UNBLOCK =  1;
 static const int SIG_SETMASK =  2;
+
+enum __sa_flags {
+    SA_NOCLDSTOP,  /* @todo values */
+    SA_NOCLDWAIT,
+    SA_NODEFER,
+    SA_ONSTACK,
+    SA_RESETHAND,
+    SA_RESTART,
+    SA_RESTORER,
+    SA_SIGINFO
+};
 
 // Signal numbers
 #include <bits/alltypes.h>

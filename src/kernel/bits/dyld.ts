@@ -20,12 +20,12 @@ class DynamicLoader {
         if (this.dylibTable.def.has(path)) return;
 
         return this.core.fetchCompile(uri).then(w => {
-            this.dylibTable.def.set(path, new DynamicLibrary.Def(w, reloc));
+            this.dylibTable.def.set(path, new DynamicLibrary.Def(w, reloc, {path, uri}));
         });
     }
 
     get import() {
-        return bindAll(this, ['dlopen', 'dlsym']);
+        return bindAll(this, ['dlopen', 'dlsym', 'dlclose']);
     }
 
     get extlib() {
@@ -38,7 +38,7 @@ class DynamicLoader {
 
     dlopen(path: i32, flags: i32) {
         var path_str = this.userGetCString(path).toString('utf-8');
-        this.core.debug(`dlopen("${path_str}", ${flags})`);
+        this.core.trace.syscalls(`dlopen("${path_str}", ${flags})`);
         if (!this.dylibTable) return 0;
         var def = this.dylibTable.def.get(path_str);
         if (def) {
@@ -54,7 +54,7 @@ class DynamicLoader {
 
     dlsym(handle: i32, symbol: i32) {
         var symbol_str = this.userGetCString(symbol).toString('utf-8');
-        //this.core.debug(`dlsym(${handle}, "${symbol_str}")`);
+        this.core.trace.syscalls(`dlsym(${handle}, "${symbol_str}")`);
         var ref = this.dylibTable.ref.get(handle);
         if (ref) {
             /* search in WASM instance */
@@ -68,6 +68,10 @@ class DynamicLoader {
             if (d !== undefined) return d;
         }
         return 0;  // @todo set error message in dlerror
+    }
+
+    dlclose(handle: i32) {
+        // do nothing?
     }
 
     dlerror_get(pbuf: i32) {
@@ -116,14 +120,17 @@ namespace DynamicLibrary {
     export class Def {
         module: WebAssembly.Module
         reloc: Relocations
+        metadata: {path?: string, uri?: string}
 
         stackSize: number = 1 << 16    /** @todo */
         memBlocks: number = 10         /** @todo */
         tblSize: number = 1024         /** @todo */
 
-        constructor(module: WebAssembly.Module, reloc: Relocations = {}) {
+        constructor(module: WebAssembly.Module, reloc: Relocations = {}, 
+                    metadata: {path?: string, uri?: string} = {}) {
             this.module = module;
             this.reloc = reloc;
+            this.metadata = metadata;
         }
 
         instantiate(core: ExecCore) {
@@ -145,7 +152,7 @@ namespace DynamicLibrary {
                     __stack_pointer: this._mkglobal(mem_base), // stack grows down?
                     stackSave: () => mem_base,          // <--- Emscripten
                     stackRestore: () => {},
-                    ...this.relocTable(this.module, core.wasm.instance),
+                    ...this.relocTable(this.module, core.wasm.instance, core.proc.import),
                     ...this.emglobals(this.module, mem_base, core.wasm.instance, () => instance),
                 },
                 ...globals,
@@ -161,14 +168,19 @@ namespace DynamicLibrary {
             return instance;
         }
 
-        relocTable(module: WebAssembly.Module, main: WebAssembly.Instance) {
+        relocTable(module: WebAssembly.Module, main: WebAssembly.Instance, std: {[name: string]: any}) {
             var imports = WebAssembly.Module.imports(module),
                 env = {};
             for (let imp of imports) {
-                if (imp.kind === 'function') {
-                    var exp = main.exports[EM_ALIASES[imp.name] || imp.name];
+                if (imp.module == 'env' && imp.kind === 'function') {
+                    var exp = main.exports[EM_ALIASES[imp.name] || imp.name]
+                              || std[imp.name];
                     if (exp instanceof Function)
                         env[imp.name] = exp;
+                    else {
+                        console.warn('unresolved symbol:', imp, '\nin', this.metadata);
+                        env[imp.name] = () => 0;
+                    }
                 }
             }
             Object.assign(env, this.reloc.js || {});

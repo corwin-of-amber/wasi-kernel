@@ -84,6 +84,9 @@ int pthread_create(pthread_t *__restrict, const pthread_attr_t *__restrict, void
 int pthread_detach(pthread_t);
 _Noreturn void pthread_exit(void *);
 int pthread_join(pthread_t, void **);
+int pthread_kill(pthread_t thread, int sig);
+
+int pthread_sigmask(int how, const sigset_t * restrict set, sigset_t * restrict oset);
 
 #ifdef __GNUC__
 __attribute__((const))

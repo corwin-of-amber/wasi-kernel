@@ -107,7 +107,20 @@ int
 int
      fchownat(int fd, const char *path, uid_t owner, gid_t group, int flag);
 
-static inline off_t
+int
+     chflags(const char *path, unsigned int flags);
+int
+     fchflags(int fd, unsigned int flags);
+int
+     lchflags(const char *path, unsigned int flags);
+
+int
+     chroot(const char *dirname);
+ 
+int
+     lockf(int fildes, int function, off_t size);
+
+static inline off_t  // ???
      __wasilibc_tell(int fd) {
           return 0;
      }
@@ -128,6 +141,8 @@ int
      dup(int fildes);
 int
      dup2(int fildes, int fildes2);
+int
+     dup3(int fildes, int fildes2, int flags);
 
 
 pid_t
@@ -138,6 +153,8 @@ pid_t
      tcgetpgrp(int fildes);
 int
      tcsetpgrp(int fildes, pid_t pgid_id);
+pid_t
+     getpgid(pid_t pid);
 int
      setpgid(pid_t pid, pid_t pgid);
 int
@@ -154,10 +171,22 @@ uid_t
      geteuid(void);
 gid_t
      getegid(void);
+pid_t
+     getsid(pid_t pid);     
+int
+     setegid(gid_t egid);
+int
+     seteuid(uid_t euid);
+int
+     setgid(gid_t gid);
+int
+     setuid(uid_t uid);     
 int
      setreuid(uid_t ruid, uid_t euid);
 int
      setregid(gid_t rgid, gid_t egid);
+pid_t
+     setsid(void);
 
 pid_t
      fork(void);
@@ -179,6 +208,8 @@ int
 
 char *
      ttyname(int fd);
+int
+     ttyname_r(int fd, char *buf, size_t len);
 
 extern int __wasi_login_get(char **pbuf) __WASI_EXTERNAL_NAME(login_get);
 
@@ -187,6 +218,15 @@ static inline char *getlogin() {
      if (!buf) __wasi_sorry(buf = (char*)malloc(__wasi_login_get(&buf)));
      return buf;
 }
+
+unsigned
+     alarm(unsigned seconds);
+
+void
+     sync(void);
+
+int
+     nice(int incr);
 
 /* string.h */
 
@@ -228,7 +268,7 @@ struct sigaltstack { uint32_t ss_flags; void *ss_sp; uint32_t ss_size; };
 int
      sigaltstack(const stack_t *restrict ss, stack_t *restrict oss);
 
-#   define SA_RESETHAND 1
+#define SIGSTKSZ 1024
 
 /* sys/stat.h */
 
@@ -251,7 +291,10 @@ int
 #define st_mtimespec st_mtim
 
 #define st_birthtimespec st_atim
-     
+
+int
+     mkfifo(const char *path, mode_t mode);
+
 /* dirent.h */
 
 #define DT_SOCK 12
@@ -274,6 +317,13 @@ int
      futimes(int fildes, const struct timeval times[2]);
 int
      utimes(const char *path, const struct timeval times[2]);
+int
+     lutimes(const char *path, struct timeval times[2]);
+
+int
+     clock_gettime(clockid_t clock_id, struct timespec *tp);
+int
+     clock_settime(clockid_t clock_id, const struct timespec *tp);
 
 /* fcntl.h */
 
