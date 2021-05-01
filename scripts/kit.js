@@ -53,9 +53,10 @@ function main() {
 
 
 function patchOutput(filename, config={}) {
-    if (config[filename] && config[filename].output) {
-        return {type: config[filename].type || 'obj',
-                fn: config[filename].output,
+    if (config[filename]) {
+        var base = patchOutput(filename, {}) || {};
+        return {type: config[filename].type || base.type || 'obj',
+                fn: config[filename].output || base.fn,
                 config: config[filename]};
     }
     else if (filename.match(/[.]o$/)) {
