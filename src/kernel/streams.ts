@@ -81,13 +81,13 @@ type SimplexStreamProps = {
 };
 
 
-class TransformStreamDuplex extends EventEmitter {
+class TransformStreamDuplex<I, O> extends EventEmitter {
 
-    ts : TransformStream;
-    writer : WritableStreamDefaultWriter;
-    reader : ReadableStreamReader;
+    ts: TransformStream<I, O>
+    writer: WritableStreamDefaultWriter<I>
+    reader: ReadableStreamReader<O>
 
-    constructor(ts: TransformStream) {
+    constructor(ts: TransformStream<I, O>) {
         super();
         this.ts = ts;
         this.writer = this.ts.writable.getWriter();
@@ -102,7 +102,7 @@ class TransformStreamDuplex extends EventEmitter {
         })();
     }
 
-    write(data: Uint8Array) {
+    write(data: I) {
         this.writer.write(data);
     }
 

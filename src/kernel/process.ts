@@ -15,8 +15,8 @@ abstract class ProcessBase extends EventEmitter {
 
     opts: ProcessStartupOptions
 
-    stdin:  TransformStreamDuplex
-    stdout: TransformStreamDuplex
+    stdin:  TransformStreamDuplex<string, BufferSource>
+    stdout: TransformStreamDuplex<BufferSource, string>
 
     stdin_raw: SimplexStream
     tty: TtyProps
