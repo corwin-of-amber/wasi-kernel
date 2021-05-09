@@ -84,7 +84,8 @@ function patchArgument(arg, config={}, wasmIn=undefined) {
 class Phase {
 
     run(prog, args) {
-        this.runNative(prog, args);
+        if (this._doNative())
+            this.runNative(prog, args);
         this.runWasm(prog, args);
     }
 
@@ -99,10 +100,21 @@ class Phase {
         }
     }
 
-    patchArgs(args) {
-        return;
-    }
+    patchArgs(args) { return; }
 
+    getOutput() { return; }
+
+    _doNative() {
+        var config = this.getConfig(),
+            out = this.getOutput(), native;
+
+        if (out && config[out] && (native = config[out].native) !== undefined
+            || config['*'] && (native = config['*'].native) !== undefined)
+            return native;
+        else
+            return true;
+    }
+    
     _exec(prog, args) {
         if (WASI_KIT_FLAGS.includes('verbose')) {
             console.log('[wasi-kit]  ', prog, args.join(' '));
@@ -132,16 +144,11 @@ class Compile extends Phase {
 
     run(prog, args) {
         this.parseArgs(args);
-        if (!this._skipNative())
-            this.runNative(prog, args);
-        this.runWasm(prog, args);
+        super.run(prog, args);
     }
 
-    _skipNative() {
-        var config = this.getConfig(),
-            out = this.flags['-o'];
-
-        return (out && config[out] && (config[out].native === true));
+    getOutput() {
+        return this.flags['-o'];
     }
 
     parseArgs(args) {
@@ -294,10 +301,6 @@ class FileOp extends Phase {
 
 
 class Archive extends Phase {
-
-    run(prog, args) {
-        super.run(prog, args);
-    }
     
     patchArgs(args) {
         var patched = [], wasmOut, wasmIn = [];
