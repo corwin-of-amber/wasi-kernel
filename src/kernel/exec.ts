@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import assert from 'assert';
 import { WASI, WASIConfig } from '@wasmer/wasi';
 import { WasmFs } from '@wasmer/wasmfs';
-import * as transformer from '@wasmer/wasm-transformer';
+//import * as transformer from '@wasmer/wasm-transformer';
 import { IFs, createFsFromVolume } from 'memfs';
 
 import { SimplexStream } from './streams';
@@ -158,7 +158,9 @@ class ExecCore extends EventEmitter {
     async fetchCompile(uri: string) {
         return memoizeMaybe(this.cached, uri, async (uri: string) => {
             var bytes = await this.fetch(uri);
-            bytes = await transformer.lowerI64Imports(bytes);
+            /** @todo maybe use `wasm-feature-detect` to run the transformer */
+            /** on demand depending on runtime support? */
+            //bytes = await transformer.lowerI64Imports(bytes);
             return WebAssembly.compile(bytes);
         });
     }

@@ -1,6 +1,6 @@
 {
   "name": "wasi-kernel",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A POSIX-like runtime environment on top of Wasmer-JS",
   "browser": "src/kernel/index.ts",
   "main": "lib/kernel/index.js",
@@ -31,6 +31,9 @@
   },
   "devDependencies": {
     "@types/node": "^13.1.1",
+    "events": "^3.3.0",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
     "typescript": "^4.2.4",
     "wabt": "^1.0.23"
   },

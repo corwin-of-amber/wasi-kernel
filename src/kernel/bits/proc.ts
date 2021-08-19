@@ -272,7 +272,7 @@ class Proc extends EventEmitter {
                 let e = onset;
                 this.emit('syscall', {
                     func: 'spawn', 
-                    data: {pid, execv: e, env: this.getenv_all()}
+                    data: {pid, execv: e.copy(), env: this.getenv_all()}
                 });
             }
             else throw onset;
@@ -497,6 +497,16 @@ class ExecvCall {
         this.prog = prog;
         this.argv = argv;
         this.envp = envp;
+    }
+
+    /**
+     * (internal) This is needed in order to transfer the `ExecvCall`
+     * via `postMessage`.
+     */
+    copy() {
+        var cpa = (bs: Buffer[]) => bs.map(b => Buffer.from(b));
+        return new ExecvCall(this.prog,
+            cpa(this.argv), cpa(this.envp));
     }
 }
 
