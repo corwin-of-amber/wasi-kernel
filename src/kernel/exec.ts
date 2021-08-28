@@ -1,9 +1,12 @@
 import { EventEmitter } from 'events';
 import assert from 'assert';
-import { WASI, WASIConfig } from '@wasmer/wasi';
-import { WasmFs } from '@wasmer/wasmfs';
-//import * as transformer from '@wasmer/wasm-transformer';
 import { IFs, createFsFromVolume } from 'memfs';
+
+// Importing Wasmer-js from `/lib` avoids some code duplication in
+// generated bundle (esp. `memfs`).
+import { WASI, WASIConfig } from '@wasmer/wasi/lib';
+import { WasmFs } from '@wasmer/wasmfs/lib';
+//import * as transformer from '@wasmer/wasm-transformer';
 
 import { SimplexStream } from './streams';
 import { Tty } from './bits/tty';

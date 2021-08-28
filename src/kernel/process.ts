@@ -83,7 +83,7 @@ class WorkerProcess extends ProcessBase {
 
     constructor(wasm: string, opts: ProcessStartupOptions={}) {
         super(opts);
-        this.worker = new Worker('./worker.ts');
+        this.worker = new Worker(new URL('./worker.ts', import.meta.url));
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = SimplexStream.from(ev.data.stdin);
             if (ev.data.tty)    this.tty = ev.data.tty;
