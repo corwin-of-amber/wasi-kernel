@@ -173,7 +173,8 @@ namespace DynamicLibrary {
                 env = {};
             for (let imp of imports) {
                 if (imp.module == 'env' && imp.kind === 'function') {
-                    var exp = main.exports[EM_ALIASES[imp.name] || imp.name]
+                    var exp = this.reloc.js?.[imp.name]
+                              || main.exports[EM_ALIASES[imp.name] || imp.name]
                               || std[imp.name];
                     if (exp instanceof Function)
                         env[imp.name] = exp;
@@ -183,7 +184,6 @@ namespace DynamicLibrary {
                     }
                 }
             }
-            Object.assign(env, this.reloc.js || {});
             return env;
         }
 
