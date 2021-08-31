@@ -103,6 +103,8 @@ int pthread_setcanceltype(int, int *);
 void pthread_testcancel(void);
 int pthread_cancel(pthread_t);
 
+struct sched_param;
+
 int pthread_getschedparam(pthread_t, int *__restrict, struct sched_param *__restrict);
 int pthread_setschedparam(pthread_t, int, const struct sched_param *);
 int pthread_setschedprio(pthread_t, int);
@@ -259,7 +261,9 @@ __REDIR(pthread_timedjoin_np, __pthread_timedjoin_np_time64);
 
 #define _m_lock __u.__vi[1]
 
+#ifndef restrict
 #define restrict
+#endif
 
 static int pthread_mutex_init(pthread_mutex_t *restrict m,
                        const pthread_mutexattr_t *restrict a) {
@@ -300,7 +304,7 @@ static int pthread_cond_wait(pthread_cond_t *restrict c, pthread_mutex_t *restri
   return EINVAL;
 }
 
-static int pthread_cond_timedwait(pthread_cond_t *__restrict, pthread_mutex_t *__restrict, const struct timespec *__restrict) {
+static int pthread_cond_timedwait(pthread_cond_t *restrict c, pthread_mutex_t *restrict m, const struct timespec *restrict t) {
   return EINVAL;
 }
 

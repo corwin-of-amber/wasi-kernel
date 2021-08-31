@@ -79,6 +79,7 @@ var names = [
     "fchflags",
     "lchflags",
     "chroot",
+    "getgroups",
     "utimes",
     "futimes",
     "lutimes",

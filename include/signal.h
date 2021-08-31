@@ -37,6 +37,8 @@ static const int SIG_BLOCK   =  0;
 static const int SIG_UNBLOCK =  1;
 static const int SIG_SETMASK =  2;
 
+#ifndef SA_NODEFER
+
 enum __sa_flags {
     SA_NOCLDSTOP,  /* @todo values */
     SA_NOCLDWAIT,
@@ -47,6 +49,8 @@ enum __sa_flags {
     SA_RESTORER,
     SA_SIGINFO
 };
+
+#endif
 
 // Signal numbers
 #include <bits/alltypes.h>

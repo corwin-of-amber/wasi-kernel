@@ -55,7 +55,7 @@ function main() {
 function patchOutput(filename, config={}) {
     if (config[filename]) {
         var base = patchOutput(filename, {}) || {};
-        return {type: config[filename].type || base.type || 'obj',
+        return {type: config[filename].type || base.type || 'bin',
                 fn: config[filename].output || base.fn,
                 config: config[filename]};
     }
@@ -258,14 +258,17 @@ class Compile extends Phase {
     }
 
     buildStartupLib() {
-        var outdir = '/tmp/wasi-kit-hijack',
-            startup_c = `${this.locateIncludes()}/bits/startup.c`,
-            startup_o = path.join(outdir, 'startup.o');
+        var outdir = '/tmp/wasi-kit-hijack', outfiles = [];
         if (!fs.existsSync(outdir))
             fs.mkdirSync(outdir);
-        this._exec(progs_wasi['clang'], ['-c', startup_c, '-o', startup_o,
-            ...this.getIncludeFlags()]);
-        return [startup_o];
+        for (let fn of ['lib', 'bits/startup']) {
+            var c = `${this.locateIncludes()}/${fn}.c`,
+                o = path.join(outdir, `${path.basename(fn)}.o`);
+            this._exec(progs_wasi['clang'], ['-c', c, '-o', o,
+                ...this.getIncludeFlags()]);
+            outfiles.push(o);
+        }
+        return outfiles;
     }
 
     matches(x, patterns) {

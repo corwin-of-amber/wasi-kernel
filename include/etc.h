@@ -118,6 +118,9 @@ int
      chroot(const char *dirname);
  
 int
+     getgroups(int gidsetsize, gid_t grouplist[]);
+
+int
      lockf(int fildes, int function, off_t size);
 
 static inline off_t  // ???
