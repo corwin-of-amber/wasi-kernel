@@ -36,8 +36,8 @@ module.exports = (env, argv) => ({
     fs: 'commonjs2 fs'
   },
   plugins: [
-    new webpack.DefinePlugin({ 'process': {browser: true, env: {}} }),
-    new webpack.ProvidePlugin({ 'Buffer': ['buffer', 'Buffer'] }),
+    new webpack.ProvidePlugin({Buffer: ['buffer', 'Buffer'],
+                               process: 'process/browser' }),
     //new BundleAnalyzerPlugin()
   ]
 });
