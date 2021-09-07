@@ -111,6 +111,11 @@ class ExecCore extends EventEmitter {
         }
     }
 
+    configure(opts: ExecCoreOptions) {
+        /** @todo reset if needed */
+        Object.assign(this.opts, opts);
+    }
+
     reset() {
         if (this.stdin) this.stdin.reset();
         this.init();
