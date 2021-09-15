@@ -1,29 +1,34 @@
 const webpack = require('webpack');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
-module.exports = (env, argv) => ({
-  name: 'worker',
-  mode: argv.mode || 'development',
-  entry: './src/kernel/worker.ts',
-  devtool: argv.mode !== 'production' ? "source-map" : undefined,
-  stats: {
-    hash: false, version: false, modules: false  // reduce verbosity
-  },
-  output: {
-    filename: 'worker.js',
-    path: `${__dirname}/dist`
-  },
-  module: {
+const base = (argv) => ({
+    mode: argv.mode || 'development',
+    devtool: argv.mode !== 'production' ? "source-map" : undefined,
+    stats: {
+      hash: false, version: false, modules: false  // reduce verbosity
+    }  
+  });
+const ts = {
     rules: [
       {
         test: /\.tsx?$/,
         use: {
-            loader: 'ts-loader', 
-            options: {allowTsInNodeModules: true} // useful for development
+          loader: 'ts-loader', 
+          options: {allowTsInNodeModules: true} // useful for development
         }
       }
     ],
+  };
+
+module.exports = (env, argv) => [{
+  name: 'worker',
+  entry: './src/kernel/worker.ts',
+  output: {
+    filename: 'worker.js',
+    path: `${__dirname}/dist`
   },
+  ...base(argv),
+  module: ts,
   resolve: {
     extensions: [ '.ts', '.js' ],
     fallback: {
@@ -40,4 +45,19 @@ module.exports = (env, argv) => ({
                                process: 'process/browser' }),
     //new BundleAnalyzerPlugin()
   ]
-});
+},
+{
+    name: 'esm',
+    target: 'node',
+    entry: './src/kernel/index.ts',
+    ...base(argv),
+    output: {
+      filename: 'index.js',
+      path: `${__dirname}/lib/kernel`,
+      library: {type: 'commonjs2'}
+    },
+    module: ts,
+    resolve: {
+      extensions: [ '.ts', '.js' ],
+    }
+}];
