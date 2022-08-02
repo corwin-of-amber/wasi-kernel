@@ -153,13 +153,15 @@ class ExecCore extends EventEmitter {
     get fs(): IFs { return this.wasmFs.fs; }
 
     async fetch(uri: string) {
-        if (typeof fetch !== 'undefined') {
+        switch (this.opts.fetchMode) {
+        case 'browser':
             const response = await fetch(uri);
             return new Uint8Array(await response.arrayBuffer());
-        }
-        else {
+        case 'fs':
             const fs = require('fs');
             return (0||fs.readFileSync)(uri);  // bypass Parcel
+        default:
+            assert(false, `unknown fetch mode '${this.opts.fetchMode}'`);
         }
     }
 
@@ -278,16 +280,22 @@ type ExecCoreOptions = {
     tty? : boolean | number | [number],
     proc?: ProcOptions,
     env?: Environ,
+    fetchMode?: FetchMode,
     cacheBins?: boolean,
     debug?: boolean,
     trace?: {syscalls?: boolean}
 };
 
 type Environ = {[k: string]: string};
+type FetchMode = 'browser' | 'fs';
 
-const defaults: ExecCoreOptions = {stdin: true};
+const defaults: ExecCoreOptions = {
+    stdin: true,
+    fetchMode: typeof window !== 'undefined' ? 'browser' : 'fs'
+};
 
 const nop = () => {};
+declare var window: any;
 
 
 function memoize<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {
