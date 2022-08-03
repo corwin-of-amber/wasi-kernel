@@ -10,7 +10,7 @@
   "side-effects": false,
   "scripts": {
     "autogen": "node scripts/autogen-delegation.js",
-    "build": "webpack --mode production && tsc --emitDeclarationOnly --outDir lib",
+    "build": "webpack --mode production && tsc --emitDeclarationOnly",
     "build:app": "parcel build shell.html",
     "dist": "rm -rf dist lib && npm run build && npm pack"
   },
