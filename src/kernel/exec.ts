@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import assert from 'assert';
+import { isBrowser, isWebWorker } from 'browser-or-node';
 import { IFs, createFsFromVolume } from 'memfs';
 
 // Importing Wasmer-js from `/lib` avoids some code duplication in
@@ -14,11 +15,10 @@ import { Proc, ProcOptions } from './bits/proc';
 import stubs from './bits/stubs';
 
 import { utf8encode, utf8decode } from './bindings/utf8';
-import { isBrowser } from '../infra/arch';
 import { SharedVolume } from './services/shared-fs';
 
-WASI.defaultBindings =
-    isBrowser ? require("@wasmer/wasi/lib/bindings/browser").default
+WASI.defaultBindings = (isBrowser || isWebWorker)
+              ? require("@wasmer/wasi/lib/bindings/browser").default
               : require("@wasmer/wasi/lib/bindings/node").default;
 
 
@@ -291,7 +291,7 @@ type FetchMode = 'browser' | 'fs';
 
 const defaults: ExecCoreOptions = {
     stdin: true,
-    fetchMode: typeof window !== 'undefined' ? 'browser' : 'fs'
+    fetchMode: (isBrowser || isWebWorker) ? 'browser' : 'fs'
 };
 
 const nop = () => {};

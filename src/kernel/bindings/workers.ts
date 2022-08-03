@@ -1,10 +1,10 @@
-import { isNode, isBrowser } from '../../infra/arch';
+import { isNode, isWebWorker } from 'browser-or-node';
 import { Worker as WorkerThread } from 'worker_threads';
 
 
 let WorkerImpl, postMessage, onMessage;
 
-if (isBrowser) {
+if (isWebWorker) {
     WorkerImpl = self.Worker;
     postMessage = self.postMessage;
     onMessage = (handler) => addEventListener('message', handler);

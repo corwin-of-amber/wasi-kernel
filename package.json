@@ -27,6 +27,7 @@
     "@wasmer/wasm-transformer": "^0.12.0",
     "@wasmer/wasmfs": "^0.12.0",
     "assert": "^2.0.0",
+    "browser-or-node": "^2.0.0",
     "buffer": "^4.9.2",
     "memfs": "3.0.4"
   },
