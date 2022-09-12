@@ -1,13 +1,14 @@
-import { isNode, isWebWorker } from 'browser-or-node';
+import { isBrowser, isNode, isWebWorker } from 'browser-or-node';
 import { Worker as WorkerThread } from 'worker_threads';
 
 
 let WorkerImpl, postMessage, onMessage;
 
-if (isWebWorker) {
+if (isBrowser || isWebWorker) {
     WorkerImpl = self.Worker;
-    postMessage = self.postMessage;
-    onMessage = (handler) => addEventListener('message', handler);
+    postMessage = self.postMessage.bind(self);
+    onMessage = (handler: (ev: MessageEvent) => void) =>
+                addEventListener('message', handler);
 }
 else if (isNode) {
     const workerThreads = (0||require)('worker_threads');

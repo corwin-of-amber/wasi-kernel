@@ -1,11 +1,13 @@
+import assert from 'assert';
 import { EventEmitter } from 'events';
-import { SharedQueue, SharedQueueProps } from './bits/queue';
+import { Queue, RingQueue, SharedQueue, SharedQueueProps } from './bits/queue';
 
 
 
 class SimplexStream extends EventEmitter {
 
-    queue: SharedQueue<Uint8Array>
+    shared: boolean
+    queue: Queue<number, Uint8Array>
     meta: Int32Array
 
     pos: number
@@ -13,9 +15,18 @@ class SimplexStream extends EventEmitter {
 
     constructor(_from: SimplexStreamProps = {}) {
         super();
-        this.queue = SharedQueue.from(_from.queue ||
-            {data: new Uint8Array(new MaybeSharedArrayBuffer(1024))});
-        this.meta = _from.meta || new Int32Array(new MaybeSharedArrayBuffer(4));
+        this.shared = _from.shared ?? false;
+        if (this.shared) {
+            this.queue = SharedQueue.from(_from.queue ||
+                {data: new Uint8Array(new MaybeSharedArrayBuffer(1024))});
+            this.meta = _from.meta || new Int32Array(new MaybeSharedArrayBuffer(4));
+        }
+        else {
+            this.queue = RingQueue.from(_from.queue ||
+                {data: new Uint8Array(new MaybeSharedArrayBuffer(1024))});
+            this.meta = _from.meta || new Int32Array(1);
+        }
+            
         if (!_from.meta) this.length = -1;
         /* local state */
         this.pos = 0;
@@ -24,7 +35,11 @@ class SimplexStream extends EventEmitter {
 
     static from(props: SimplexStreamProps) { return new SimplexStream(props); }
 
-    to(): SimplexStreamProps { return {queue: this.queue.to(), meta: this.meta}; }
+    to(): SimplexStreamProps {
+        // only supported for `SharedQueue`, used to transfer between worker threads
+        assert(this.queue instanceof SharedQueue);
+        return {queue: (this.queue as SharedQueue<Uint8Array>).to(), meta: this.meta};
+    }
 
     get length() {
         return Atomics.load(this.meta, 0);
@@ -57,7 +72,7 @@ class SimplexStream extends EventEmitter {
     }
 
     write(writeBuffer: Uint8Array) {
-        let writec = this.queue.enqueueAll(writeBuffer);
+        let writec = this.queue.enqueueSome(writeBuffer);
         this.pos += writec;
         return writec;
     }
@@ -76,8 +91,9 @@ class SimplexStream extends EventEmitter {
 
 
 type SimplexStreamProps = {
-    queue? : SharedQueueProps<Uint8Array>;
-    meta? : Int32Array;
+    shared?: boolean
+    queue?: SharedQueueProps<Uint8Array>
+    meta?: Int32Array
 };
 
 
@@ -118,5 +134,5 @@ const MaybeSharedArrayBuffer = typeof SharedArrayBuffer != 'undefined'
 
 
 
-export {SimplexStream, TransformStreamDuplex}
+export {SimplexStream, SimplexStreamProps, TransformStreamDuplex}
 

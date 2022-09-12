@@ -1,25 +1,20 @@
-import { EventEmitter } from 'events';
 import assert from 'assert';
+import { EventEmitter } from 'events';
 import { isBrowser, isWebWorker } from 'browser-or-node';
-import { IFs, createFsFromVolume } from 'memfs';
 
 // Importing Wasmer-js from `/lib` avoids some code duplication in
-// generated bundle (esp. `memfs`).
-import { WASI, WASIConfig } from '@wasmer/wasi/lib';
-import { WasmFs } from '@wasmer/wasmfs/lib';
-//import * as transformer from '@wasmer/wasm-transformer';
+// generated bundle and skips bundling `wasi_wasm_js_bg.wasm`.
+import { WASI } from '@wasmer/wasi/lib';
 
-import { SimplexStream } from './streams';
+import { init } from '.';
+import { SimplexStream, SimplexStreamProps } from './streams';
 import { Tty } from './bits/tty';
 import { Proc, ProcOptions } from './bits/proc';
 import stubs from './bits/stubs';
 
 import { utf8encode, utf8decode } from './bindings/utf8';
+import { Volume, MemFSVolume } from './services/fs';
 import { SharedVolume } from './services/shared-fs';
-
-WASI.defaultBindings = (isBrowser || isWebWorker)
-              ? require("@wasmer/wasi/lib/bindings/browser").default
-              : require("@wasmer/wasi/lib/bindings/node").default;
 
 
 
@@ -27,7 +22,7 @@ class ExecCore extends EventEmitter {
 
     opts: ExecCoreOptions
     stdin: SimplexStream
-    wasmFs: WasmFs
+    fs: Volume
     env: Environ
     argv: string[]
     wasi: WASI
@@ -50,10 +45,8 @@ class ExecCore extends EventEmitter {
         this.opts = opts = Object.assign({}, defaults, opts);
         
         // Configure envrionment
-        this.stdin = opts.stdin ? new SimplexStream() : null;
-        this.wasmFs = new WasmFs();
-
-        this.populateRootFs();
+        this.stdin = opts.stdin ? new SimplexStream(
+            typeof opts.stdin === 'object' ? opts.stdin : undefined) : null;
 
         this.proc = new Proc(this, opts.proc);
         this.tty = opts.tty ? new Tty(this) : null;
@@ -82,22 +75,9 @@ class ExecCore extends EventEmitter {
         this.argv = ['.'];
         this.env = this.initialEnv();
 
-        // Instantiate a new WASI Instance
-        this.wasi = new WASI({
-            args: this.argv,
-            env: this.env,
-            bindings: {
-                ...WASI.defaultBindings,
-                exit: code => { throw new WASIExitError(code) },
-                fs: this.wasmFs.fs,
-                path: this.proc.path
-            },
-            preopens: {'/': '/'},
-            ...this.extraWASIConfig()
-        });
         this.exited = false;
 
-        this.registerStdio();
+        //this.registerStdio();
         this.proc.init();
 
         // Initialize tty (for streaming stdin)
@@ -106,8 +86,8 @@ class ExecCore extends EventEmitter {
             var fds = (typeof tty == 'number') ? [tty]
                     : (typeof tty == 'boolean') ? [0,1,2] : tty;
             this.tty.fds = fds;
-            for (let fd of fds)
-                this.tty.makeTty(fd);
+            //for (let fd of fds)
+            //    this.tty.makeTty(fd);
         }
     }
 
@@ -118,7 +98,31 @@ class ExecCore extends EventEmitter {
 
     reset() {
         if (this.stdin) this.stdin.reset();
+        this.wasi = undefined;
         this.init();
+        /** @todo `setup()`? */
+    }
+
+    /** Creates the WASI instance */
+    async setup() {
+        await init();  // in case was not initialized before
+
+        if (!this.fs) {
+            this.fs = this.opts.fs ?? new MemFSVolume();
+            this.populateRootFs();
+        }
+
+        this.proc.setup();
+
+        // Instantiate a new WASI Instance
+        this.wasi = new WASI({
+            args: this.argv,
+            env: this.env,
+            stdio: this.stdioHook(),   
+            preopens: {'/': '/'},
+            fs: (this.fs instanceof MemFSVolume) ? this.fs._ : undefined
+            //...this.extraWASIConfig()
+        });
     }
 
     async start(wasmUri: string, argv?: string[], env?: {}) {
@@ -129,6 +133,8 @@ class ExecCore extends EventEmitter {
         this.proc.opts = this.opts.proc || {}; // in case new options where set
         this.initTraces();
 
+        await this.setup();
+
         // Fetch Wasm binary and instantiate WebAssembly instance
         var wamodule = await this.fetchCompile(wasmUri),
             wainstance = await WebAssembly.instantiate(wamodule,
@@ -136,6 +142,7 @@ class ExecCore extends EventEmitter {
         
         this.wasm = {module: wamodule, instance: wainstance};
     
+        this.emit('start');
         // Start the WebAssembly WASI instance
         try {
             this.wasi.start(this.wasm.instance);
@@ -149,8 +156,6 @@ class ExecCore extends EventEmitter {
             this.exited = true;
         }
     }
-
-    get fs(): IFs { return this.wasmFs.fs; }
 
     async fetch(uri: string) {
         switch (this.opts.fetchMode) {
@@ -167,11 +172,7 @@ class ExecCore extends EventEmitter {
 
     async fetchCompile(uri: string) {
         return memoizeMaybe(this.cached, uri, async (uri: string) => {
-            var bytes = await this.fetch(uri);
-            /** @todo maybe use `wasm-feature-detect` to run the transformer */
-            /** on demand depending on runtime support? */
-            //bytes = await transformer.lowerI64Imports(bytes);
-            return WebAssembly.compile(bytes);
+            return WebAssembly.compile(await this.fetch(uri));
         });
     }
 
@@ -217,6 +218,7 @@ class ExecCore extends EventEmitter {
         return {PATH: '/bin', PWD: '/home'};
     }
 
+    /* @todo is there any substitute for WASIConfig?
     extraWASIConfig(): WASIConfig {
         let o = this.opts;
         return {traceSyscalls: o.trace && o.trace.syscalls}
@@ -239,21 +241,47 @@ class ExecCore extends EventEmitter {
         volume.fds[1].write = d => this.emitWrite(1, d);
         volume.fds[2].write = d => this.emitWrite(2, d);
     }
+    */
+
+    stdioHook() {
+        let self = this;
+    
+        return {
+            write(data: Uint8Array) {
+                console.log("write!", data); 
+                self.emit('stream:out', {data, fd: 1});
+            },
+            read(sz: number) {
+                assert(sz < Number.MAX_SAFE_INTEGER);
+                sz = Number(sz);
+                console.log("read!", sz);
+                try {  
+                let buf = new Uint8Array(sz),
+                    rd = self.stdin.read(buf, 0, sz, 0);
+                return buf.subarray(0, rd);
+                }
+                catch(e) { console.error(e); }
+            }
+        };
+    }
 
     mountFs(volume: SharedVolume) {
+        throw new Error("`mountfs`: not implemented")
+        /*
         volume.fromJSON(this.wasmFs.volume.toJSON());
         this.wasmFs.volume = volume;
         this.wasmFs.fs = createFsFromVolume(volume);
         // must recreate WASI now
         this.init();
+        */
     }
 
     /**
      * Bootstrapping filesystem contents
      */
     populateRootFs() {
-        this.wasmFs.fs.mkdirSync("/home");
-        this.wasmFs.fs.mkdirSync("/bin");
+        this.fs.mkdirSync("/home");
+        this.fs.mkdirSync("/bin");
     }
 
     _debugPrint() {
@@ -276,10 +304,11 @@ class ExecCore extends EventEmitter {
 }
 
 type ExecCoreOptions = {
-    stdin? : boolean,
+    stdin? : boolean | SimplexStreamProps,
     tty? : boolean | number | [number],
     proc?: ProcOptions,
     env?: Environ,
+    fs?: Volume,
     fetchMode?: FetchMode,
     cacheBins?: boolean,
     debug?: boolean,

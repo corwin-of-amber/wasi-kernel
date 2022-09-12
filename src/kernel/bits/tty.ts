@@ -34,8 +34,11 @@ class Tty extends EventEmitter {
 
     makeTty(fd: number) {
         // Make isatty(fd) return `true`
+        /** @todo Wasmer 3 makes stdin/out/err isatty by default. Is this wanted? */
+        /*
         this.core.wasi.FD_MAP.get(fd).filetype = 2;
         this.core.wasi.FD_MAP.get(fd).rights.base &= ~BigInt(0x24);
+        */
     }
 
     write(data: any) {

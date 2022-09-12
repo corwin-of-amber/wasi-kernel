@@ -1,13 +1,14 @@
 {
   "compilerOptions": {
-    "target": "es2019",
+    "target": "es2020",
     "module": "esnext",
-    "lib": ["webworker"],
+    "lib": ["es2020", "dom", "webworker"],
     "moduleResolution": "node",
     "esModuleInterop": true,
     "downlevelIteration": true,
     "declaration": true,
     "outDir": "lib",
     "rootDir": "src"
-  }
+  },
+  "include": ["src"]
 }

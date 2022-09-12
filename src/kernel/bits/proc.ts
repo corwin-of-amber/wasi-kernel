@@ -2,7 +2,7 @@ import assert from 'assert';
 import path from 'path';
 import { EventEmitter } from 'events';
 
-import * as constants from '@wasmer/wasi/lib/constants';
+//import * as constants from '@wasmer/wasi/lib/constants';
 
 import stubs from './stubs';
 import { ExecCore } from '../exec';
@@ -52,8 +52,10 @@ class Proc extends EventEmitter {
     }
 
     init() {
-        const newfd = this.newfd() + 1,  /* the +1 is a hack that I do not fully understand */
-              fdcwd: any = {  /* type File is not exported by wasmer :( */
+        /* @todo need to test and figure out if a similar cwd hack is needed in the new version
+
+        const newfd = this.newfd() + 1,  /* the +1 is a hack that I do not fully understand *
+              fdcwd: any = {  /* type File is not exported by wasmer :( *
                   real: newfd,
                   rights: RIGHTS_ALL,  // uhm
                   filetype: constants.WASI_FILETYPE_DIRECTORY,
@@ -62,8 +64,13 @@ class Proc extends EventEmitter {
               };
         this.core.wasi.FD_MAP.set(AT_FDCWD, fdcwd);
         this.core.wasi.FD_MAP.set(newfd, fdcwd);  // last key inserted must be the largest
+        */
+    }
 
-        this.core.wasmFs.fs.writeFileSync('/dev/null', '');
+    /** This can only run once the core has been set up */
+    setup() {
+        this.core.fs.mkdirSync('/dev', {recursive: true});
+        this.core.fs.writeFileSync('/dev/null', '');
     }
 
     get import() {
@@ -107,13 +114,16 @@ class Proc extends EventEmitter {
         };
     }
 
+    get _mem(): WebAssembly.Memory {
+        return this.core.wasm.instance.exports.memory as WebAssembly.Memory;
+    }
+
     get mem(): DataView {
-        this.core.wasi.refreshMemory();
-        return this.core.wasi.view;
+        return new DataView(this._mem.buffer);
     }
 
     get membuf(): Buffer {
-        return Buffer.from(this.core.wasi.memory.buffer);        
+        return Buffer.from(this._mem.buffer);        
     }
 
     /**
@@ -184,28 +194,36 @@ class Proc extends EventEmitter {
         return resolved_name;
     }
 
+    /*
     newfd(minfd: number = 0) {
         var highest = Math.max(...this.core.wasi.FD_MAP.keys());
         return Math.max(minfd, highest + 1);
     }
+    */
 
     dupfd(fd: i32, minfd: i32, cloexec: boolean) {
+        console.warn('[wasi-kernel] `dupfd` implementation is deferred');
+        return -1;
+        /*
         this.core.trace.syscalls(`dupfd(${fd}, ${minfd}, ${cloexec}`);
         var desc = this.core.wasi.FD_MAP.get(fd);
         if (!desc) return -1;
 
         var newfd = this.newfd(minfd);
         this.core.wasi.FD_MAP.set(newfd, this.dupdesc(desc));
-        return newfd;
+        return newfd;*/
     }
 
     dupdesc(desc: {real: number}): any /* File is not exported from @wasmer/wasi */ {
+        console.warn('[wasi-kernel] `dupdesc` implementation is deferred');
+        return -1;
+        /*
         // A hack to get a new "real" fd
         var newreal = this.core.wasmFs.volume.openSync('/', 'r');
         // - this heavily relies on the memfs implementation of Volume
         var realFD_MAP = this.core.wasmFs.volume.fds;
         realFD_MAP[newreal] = realFD_MAP[desc.real];
-        return Object.assign({}, desc, {real: newreal});
+        return Object.assign({}, desc, {real: newreal}); */
     }
 
     strmode(mode: i32, buf: i32) {
@@ -342,7 +360,7 @@ class Proc extends EventEmitter {
 
     userGetCString(addr: i32): Buffer {
         if (addr == 0) return null;
-        let mem = Buffer.from(this.core.wasi.memory.buffer);
+        let mem = this.membuf;
         return mem.slice(addr, mem.indexOf(0, addr));
     }
 
@@ -413,10 +431,12 @@ class Proc extends EventEmitter {
 
 const AT_FDCWD = -100;
 
+/*
 const RIGHTS_ALL = {
     base: constants.RIGHTS_ALL,
     inheriting: constants.RIGHTS_ALL
 };
+*/
 
 type ProcOptions = {
     funcTableSz? : number

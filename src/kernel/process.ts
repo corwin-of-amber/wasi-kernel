@@ -80,10 +80,11 @@ abstract class ProcessBase extends EventEmitter {
 class WorkerProcess extends ProcessBase {
 
     worker : Worker
+    opts: WorkerProcessStartupOptions
 
-    constructor(wasm: string, opts: ProcessStartupOptions={}) {
+    constructor(wasm: string, opts: WorkerProcessStartupOptions={}) {
         super(opts);
-        this.worker = new Worker(new URL('./worker.ts', import.meta.url));
+        this.worker = new Worker(opts.workerScriptUri ?? new URL('./worker.ts', import.meta.url));
         this.worker.addEventListener('message', ev => {
             if (ev.data.stdin)  this.stdin_raw = SimplexStream.from(ev.data.stdin);
             if (ev.data.tty)    this.tty = ev.data.tty;
@@ -91,7 +92,7 @@ class WorkerProcess extends ProcessBase {
             if (ev.data.childq) this.childq = SharedQueue.from(ev.data.childq);
             if (ev.data.fd)     this.stdout.write(ev.data.data);
 
-            if (ev.data.event)  this.emit(ev.data.event, ev.data.arg, wasm);
+            if (ev.data.event)  this.emit(ev.data.event, ev.data.arg ?? ev.data, wasm);
         });
 
         if (wasm) this.exec(wasm);
@@ -104,8 +105,13 @@ class WorkerProcess extends ProcessBase {
 
     exec(wasm: string, argv?: string[]) {
         if (this.exited) this.reset();
-        if (argv) this.opts.argv = argv;
-        this.worker.postMessage({exec: wasm, opts: this.opts});
+        let opts = {...this.opts,
+            ...(argv ? {argv} : {}),
+            // convert URL to string because URL is not serializable
+            ...(this.opts.workerScriptUri instanceof URL ?
+                {workerScriptUri: this.opts.workerScriptUri.href}: {})
+        };
+        this.worker.postMessage({exec: wasm, opts});
     }
 }
 
@@ -123,10 +129,11 @@ class BareProcess extends ProcessBase {
         const {ExecCore} = await import('./exec');  // on-demand import
 
         this.core = new ExecCore({argv, ...this.opts});
-        this.core.on('stream:out', ev => process.stdout.write(ev.data));
+        this.core.on('stream:out', ev => this.stdout.write(ev.data));
+        this.core.on('start', () => this.emit('start', {}, wasm));
         try {
             let exitcode = await this.core.start(wasm, this.opts.argv);
-            this.emit('exit', {code: exitcode});
+            this.emit('exit', {code: exitcode}), wasm;
         }
         catch (err) {
             this.emit('error', err, wasm);
@@ -138,6 +145,10 @@ class BareProcess extends ProcessBase {
 type ProcessStartupOptions = ExecCoreOptions & {
     argv?: string[];
 }
+
+type WorkerProcessStartupOptions = ProcessStartupOptions & {
+    workerScriptUri?: URL | string
+};
 
 
 

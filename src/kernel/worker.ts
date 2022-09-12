@@ -8,9 +8,9 @@ import { SharedVolume } from "./services/shared-fs";
 import { postMessage, onMessage } from './bindings/workers';
 
 
-const core = new ExecCore({tty: true});
+const core = new ExecCore({tty: true, stdin: {shared: true}});
 
-postMessage(core.share());
+postMessage({event: 'start', ...core.share()});
     
 core.on('stream:out',   ev => postMessage(ev));
 core.tty.on('data',     ev => postMessage({event: 'tty:data', arg: ev}));
@@ -19,8 +19,8 @@ core.proc.on('syscall', ev => postMessage({event: 'syscall', arg: ev}));
 onMessage(async (ev) => {
     if (ev.data.upload) {
         for (let fn in ev.data.upload) {
-            core.wasmFs.fs.mkdirpSync(path.dirname(fn));
-            core.wasmFs.fs.writeFileSync(fn, ev.data.upload[fn]);
+            core.fs.mkdirSync(path.dirname(fn), {recursive: true});
+            core.fs.writeFileSync(fn, ev.data.upload[fn]);
         }
     }
     if (ev.data.volume) {
