@@ -87,6 +87,8 @@ int main(int argc, char *argv[]) {
 
     setvbuf(stdin, 0, _IONBF, 0);  // unbuffered
     printf("isatty(0) = %d\n", isatty(0));
+    printf("isatty(1) = %d\n", isatty(1));
+    printf("isatty(2) = %d\n", isatty(2));
 
     printf("progname = '%s'\n", getprogname());
 

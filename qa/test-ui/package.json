@@ -1,0 +1,13 @@
+{
+    "name": "wasi-kernel-test-ui",
+    "version": "0.0.0",
+    "main": "build/kremlin/shell.html",
+    "dependencies": {
+        "concat-stream": "^2.0.0",
+        "tar-stream": "^2.2.0"
+    },
+    "devDependencies": {
+        "@types/concat-stream": "^2.0.0",
+        "@types/tar-stream": "^2.2.2"
+    }
+}

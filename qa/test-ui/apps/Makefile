@@ -1,4 +1,4 @@
-INC = -I../../include -include ../../include/etc.h
+INC = -I../../../include -include ../../../include/etc.h
 LDFLAGS = -Wl,-allow-undefined -Wl,--import-table
 
 busy.wasm: busy.c

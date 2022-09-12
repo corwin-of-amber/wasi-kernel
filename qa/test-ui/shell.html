@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WASI Kernel</title>
+    <meta charset="UTF-8" />
+    <!-- <link href="./src/kernel/worker.ts" id="kernel-worker"> -->
+    <link href="./src/apps/busy.wasm" id="wasm-app">
+    <script src="main.ts"></script>
+  </head>
+
+  <body>
+    <pre id="stdout"></pre>
+  </body>
+
+  <!-- @kremlin.plug -->
+  <script>k?.config({main: ['shell.html', '../../src/kernel/worker.ts']});</script>
+
+</html>
