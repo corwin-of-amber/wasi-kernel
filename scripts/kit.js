@@ -142,6 +142,8 @@ class Phase {
 
 class Compile extends Phase {
 
+    FLAGS_BOOL = ['-c', '-shared', '-nostdlib']
+
     run(prog, args) {
         this.parseArgs(args);
         super.run(prog, args);
@@ -155,7 +157,7 @@ class Compile extends Phase {
         var flags = {};
         for (let i = 0; i < args.length; i++) {
             let arg = args[i];
-            if (arg == '-c' || arg == '-shared') {
+            if (this.FLAGS_BOOL.includes(arg)) {
                 flags[arg] = true;
             }
             else if (arg == '-o') {
@@ -213,15 +215,16 @@ class Compile extends Phase {
         return flags;
     }
 
-    getLinkFlags() {
-        return this.buildStartupLib();
+    getLinkFlags(flags) {
+        return (flags['-shared'] || flags['-nostdlib']) ? []
+                : this.buildStartupLib();
     }
 
     postProcessArgs(wasmOut, flags, patched) {
         // Add WASI include directories
         patched.unshift(...this.getIncludeFlags());
-        if (!flags['-c'] && !flags['-shared'])
-            patched.unshift(...this.getLinkFlags());
+        if (!flags['-c'])
+            patched.unshift(...this.getLinkFlags(flags));
 
         // Apply config settings
         if (wasmOut.config) {
