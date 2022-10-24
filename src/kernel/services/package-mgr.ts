@@ -1,3 +1,10 @@
+/**
+ * The package manager is not part of the kernel per se,
+ * but a worker without some sensible way to install packages is rather
+ * useless, and so this functionality is here so that it can get compiled
+ * into the worker.
+ */
+
 import { EventEmitter } from 'events';
 //import { Volume } from 'memfs/lib/volume';
 import path from 'path';
