@@ -125,7 +125,7 @@ int
 
 static inline off_t  // ???
      __wasilibc_tell(int fd) {
-          return 0;
+          (void)(fd); return 0;
      }
 
 typedef void (*sig_t) (int);

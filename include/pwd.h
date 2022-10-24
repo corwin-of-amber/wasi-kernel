@@ -36,10 +36,10 @@ int
          struct passwd **result);
 
 void
-     setpwent();
+     setpwent(void);
 
 void
-     endpwent();
+     endpwent(void);
 
 
 WASI_C_END
