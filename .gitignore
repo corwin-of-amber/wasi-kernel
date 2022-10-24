@@ -7,4 +7,5 @@ dist
 .cache
 /build
 /lib
-/npm-link
+/subsidiaries
+/_npmlink
