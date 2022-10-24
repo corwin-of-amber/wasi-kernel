@@ -4,7 +4,7 @@ import { isBrowser, isWebWorker } from 'browser-or-node';
 
 // Importing Wasmer-js from `/lib` avoids some code duplication in
 // generated bundle and skips bundling `wasi_wasm_js_bg.wasm`.
-import { WASI } from '@wasmer/wasi/lib';
+import { WASI, MemFS } from '@wasmer/wasi/lib';
 
 import { init } from '.';
 import { SimplexStream, SimplexStreamProps } from './streams';
@@ -13,8 +13,7 @@ import { Proc, ProcOptions } from './bits/proc';
 import stubs from './bits/stubs';
 
 import { utf8encode, utf8decode } from './bindings/utf8';
-import { Volume, MemFSVolume } from './services/fs';
-import { SharedVolume } from './services/shared-fs';
+import { Volume, MemFSVolume, SharedVolume } from './services/fs';
 
 
 
@@ -114,13 +113,18 @@ class ExecCore extends EventEmitter {
 
         this.proc.setup();
 
+        this._mkWASI();
+    }
+
+    _mkWASI() {
         // Instantiate a new WASI Instance
         this.wasi = new WASI({
             args: this.argv,
             env: this.env,
             stdio: this.stdioHook(),   
             preopens: {'/': '/'},
-            fs: (this.fs instanceof MemFSVolume) ? this.fs._ : undefined
+            fs: (this.fs instanceof SharedVolume) ? this.fs.storage :
+                  (this.fs instanceof MemFSVolume) ? this.fs._ : undefined
             //...this.extraWASIConfig()
         });
     }
@@ -133,7 +137,7 @@ class ExecCore extends EventEmitter {
         this.proc.opts = this.opts.proc || {}; // in case new options where set
         this.initTraces();
 
-        await this.setup();
+        if (!this.wasi || argv || env) await this.setup();
 
         // Fetch Wasm binary and instantiate WebAssembly instance
         var wamodule = await this.fetchCompile(wasmUri),
@@ -265,15 +269,11 @@ class ExecCore extends EventEmitter {
         };
     }
 
-    mountFs(volume: SharedVolume) {
-        throw new Error("`mountfs`: not implemented")
-        /*
-        volume.fromJSON(this.wasmFs.volume.toJSON());
-        this.wasmFs.volume = volume;
-        this.wasmFs.fs = createFsFromVolume(volume);
-        // must recreate WASI now
-        this.init();
-        */
+    mountFs(raw: ArrayBuffer) {
+        this.fs = new SharedVolume(raw);
+
+        // need to recreate WASI with the new fs
+        this._mkWASI();
     }
 
     /**
@@ -324,7 +324,6 @@ const defaults: ExecCoreOptions = {
 };
 
 const nop = () => {};
-declare var window: any;
 
 
 function memoize<K, V>(cache: Map<K, V>, k: K, f: (k: K) => V) {

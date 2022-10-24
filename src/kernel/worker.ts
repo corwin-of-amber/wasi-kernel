@@ -9,14 +9,17 @@ import { postMessage, onMessage } from './bindings/workers';
 
 
 const core = new ExecCore({tty: true, stdin: {shared: true}});
+let _setup = core.setup();
 
-postMessage({event: 'start', ...core.share()});
-    
+postMessage({event: 'init', ...core.share()});
+
+core.on('start',        () => postMessage({event: 'start', ...core.share()}));
 core.on('stream:out',   ev => postMessage(ev));
 core.tty.on('data',     ev => postMessage({event: 'tty:data', arg: ev}));
 core.proc.on('syscall', ev => postMessage({event: 'syscall', arg: ev}));
 
 onMessage(async (ev) => {
+    await _setup;
     if (ev.data.upload) {
         for (let fn in ev.data.upload) {
             core.fs.mkdirSync(path.dirname(fn), {recursive: true});
@@ -24,7 +27,7 @@ onMessage(async (ev) => {
         }
     }
     if (ev.data.volume) {
-        core.mountFs(SharedVolume.from(ev.data.volume));
+        core.mountFs(ev.data.volume.storage);
     }
     if (ev.data.dyld) {
         for (let lib of ev.data.dyld.preload || []) {

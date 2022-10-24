@@ -7,7 +7,7 @@ import { SignalVector, ChildProcessQueue } from './bits/proc';
 import { Worker } from './bindings/workers';
 import { SharedQueue } from './bits/queue';
 import { ExecCore, ExecCoreOptions } from './exec';
-import { SharedVolume } from './services/shared-fs';
+import { SharedVolume } from './services/fs';
 
 
 
@@ -99,7 +99,7 @@ class WorkerProcess extends ProcessBase {
     }
 
     mountFs(volume: SharedVolume) {
-        this.worker.postMessage({volume: volume.to()});
+        this.worker.postMessage({storage: volume.storage});
         return this;
     }
 
@@ -122,7 +122,7 @@ class BareProcess extends ProcessBase {
 
     constructor(wasm: string, opts: ProcessStartupOptions={}) {
         super(opts);
-        this.exec(wasm);
+        if (wasm) this.exec(wasm);
     }
 
     async exec(wasm: string, argv?: string[]) {
@@ -131,6 +131,7 @@ class BareProcess extends ProcessBase {
         this.core = new ExecCore({argv, ...this.opts});
         this.core.on('stream:out', ev => this.stdout.write(ev.data));
         this.core.on('start', () => this.emit('start', {}, wasm));
+        this.stdin_raw = this.core.stdin;
         try {
             let exitcode = await this.core.start(wasm, this.opts.argv);
             this.emit('exit', {code: exitcode}), wasm;
@@ -152,4 +153,5 @@ type WorkerProcessStartupOptions = ProcessStartupOptions & {
 
 
 
-export { ProcessBase, WorkerProcess, BareProcess, ProcessStartupOptions }
+export { ProcessBase, WorkerProcess, BareProcess, ProcessStartupOptions,
+         WorkerProcessStartupOptions }

@@ -1,3 +1,5 @@
+/** @obsolete */
+
 import { fs as memfs, Volume } from 'memfs';
 import { filenameToSteps } from 'memfs/lib/volume';
 import { Node, Link } from 'memfs/lib/node';

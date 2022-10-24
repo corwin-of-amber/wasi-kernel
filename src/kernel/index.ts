@@ -3,7 +3,7 @@ export { ProcessBase as Process, WorkerProcess, BareProcess } from './process';
 export { ExecCore } from './exec';
 export type { ExecCoreOptions } from './exec';
 
-export { Volume, MemFSVolume } from './services/fs';
+export { Volume, MemFSVolume, SharedVolume } from './services/fs';
 
 import { init as wasi_init } from '@wasmer/wasi/lib';
 

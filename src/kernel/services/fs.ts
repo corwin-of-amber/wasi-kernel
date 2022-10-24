@@ -1,4 +1,6 @@
 import assert from 'assert';
+import path from 'path';
+import { promisify } from 'util';
 import { MemFS } from '@wasmer/wasi/lib';
 
 /**
@@ -6,29 +8,42 @@ import { MemFS } from '@wasmer/wasi/lib';
  * classes that represent a filesystem that can be mounted.
  */
 interface Volume {
-    mkdirSync(filename: string, options?: {recursive: boolean}): void;
+    mkdirSync(filename: string, options?: {recursive: boolean}): void
 
-    writeFileSync(filename: string, content: string | Uint8Array): void;
-    writeFile(filename: string, content: string | Uint8Array, callback: (err: Error) => void): void;
+    writeFileSync(filename: string, content: string | Uint8Array): void
+    writeFile(filename: string, content: string | Uint8Array, callback: (err: Error) => void): void
 
-    readFileSync(filename: string): Uint8Array;
-    readFileSync(filename: string, encoding: 'utf-8'): string;
-    readFile(filename: string, callback: (err: Error, ret: Uint8Array) => void): void;
-    readFile(filename: string, encoding: 'utf-8', callback: (err: Error, ret: string) => void): void;
+    readFileSync(filename: string): Uint8Array
+    readFileSync(filename: string, encoding: 'utf-8'): string
+    readFile(filename: string, callback: (err: Error, ret: Uint8Array) => void): void
+    readFile(filename: string, encoding: 'utf-8', callback: (err: Error, ret: string) => void): void
 
-    readdirSync(dirpath: string): string[];
-    readdir(dirpath: string, callback: (err: Error, ret: string[]) => void): void;
+    readdirSync(dirpath: string): string[]
+    readdir(dirpath: string, callback: (err: Error, ret: string[]) => void): void
+
+    promises?: VolumePromises
 }
 
+interface VolumePromises {
+    readdir(dirpath: string): Promise<string[]>
+    readFile(filename: string): Promise<Uint8Array>
+    readFile(filename: string, encoding: 'utf-8'): Promise<string>
+}
 
 /**
  * An adapter between the Volume interface and Wasmer-JS's MemFS.
  */
 class MemFSVolume implements Volume {
     _: MemFS
+    promises: VolumePromises
 
     constructor(fs: MemFS = new MemFS) {
         this._ = fs;
+        this.promises = {
+            readdir: promisify(this.readdir),
+            // @ts-ignore
+            readFile: promisify(this.readFile)
+        };
     }
     mkdirSync(filename: string, options?: { recursive: boolean; }): void {
         if (options?.recursive) {
@@ -75,7 +90,9 @@ class MemFSVolume implements Volume {
     }
 
     readdirSync(dirpath: string): string[] {
-        return this._.readDir(dirpath);
+        // the full path and metadata are actually quite useful...
+        // but that's the API, must uphold the contract
+        return this._.readDir(dirpath).map(e => path.basename(e.path));
     }
     readdir(dirpath: string, callback: (err: Error, ret: string[]) => void): void {
         try { var ret = this.readdirSync(dirpath); }
@@ -85,4 +102,14 @@ class MemFSVolume implements Volume {
 }
 
 
-export { Volume, MemFSVolume }
+class SharedVolume extends MemFSVolume {
+    storage: ArrayBuffer
+
+    constructor(storage: ArrayBuffer) {
+        super(MemFS.new_with_storage(storage));
+        this.storage = storage;
+    }
+}
+
+
+export { Volume, MemFSVolume, SharedVolume }
