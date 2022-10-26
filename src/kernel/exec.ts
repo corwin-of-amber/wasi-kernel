@@ -123,8 +123,7 @@ class ExecCore extends EventEmitter {
             env: this.env,
             stdio: this.stdioHook(),   
             preopens: {'/': '/'},
-            fs: (this.fs instanceof SharedVolume) ? this.fs.storage :
-                  (this.fs instanceof MemFSVolume) ? this.fs._ : undefined
+            fs: (this.fs instanceof MemFSVolume) ? this.fs._ : undefined
             //...this.extraWASIConfig()
         });
     }

@@ -17,7 +17,3 @@ async function _fetch(uri: string) {
     const response = await fetch(uri);
     return new Uint8Array(await response.arrayBuffer());
 }
-
-/*
-export { SharedVolume } from './services/shared-fs';
-*/
