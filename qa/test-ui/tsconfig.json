@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2020",
     "module": "esnext",
-    "lib": ["webworker", "dom"],
+    "lib": ["es2022", "webworker", "dom"],
     "moduleResolution": "node",
     "esModuleInterop": true,
     "downlevelIteration": true,
@@ -10,5 +10,5 @@
     "outDir": "lib",
     "rootDir": "../.."
   },
-  "include": ["*.ts"]
+  "include": ["**/*.ts"]
 }
