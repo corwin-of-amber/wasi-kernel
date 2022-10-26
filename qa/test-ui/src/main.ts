@@ -1,9 +1,8 @@
-import fs from 'fs';
-import * as kernel from '../../../src/kernel';
-import { Volume, MemFSVolume, SharedVolume } from '../../../src/kernel';
-import { PackageManager, Resource } from '../../../src/kernel/services/package-mgr';
+import * as kernel from 'wasi-kernel';
+import { Volume, MemFSVolume, SharedVolume } from 'wasi-kernel';
+import { PackageManager } from 'wasi-kernel/services';
 
-import { Shell } from './shell/shell';
+import { Shell } from 'wasi-kernel/extra/shell';
 
 
 

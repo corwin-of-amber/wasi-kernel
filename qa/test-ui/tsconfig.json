@@ -3,7 +3,7 @@
     "target": "es2020",
     "module": "esnext",
     "lib": ["es2022", "webworker", "dom"],
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "esModuleInterop": true,
     "downlevelIteration": true,
     "declaration": true,

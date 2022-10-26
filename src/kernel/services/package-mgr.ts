@@ -16,10 +16,14 @@ import concat from 'concat-stream';
 //import { SharedVolume } from 'wasi-kernel';
 
 
-interface Volume {
-    mkdirSync(filename: string, options: {recursive: boolean}): void;
-    writeFile(filename: string, content: string | Uint8Array, callback: () => void): void;
+namespace PackageManager {
+    export interface Volume {
+        mkdirSync(filename: string, options: {recursive: boolean}): void;
+        writeFile(filename: string, content: string | Uint8Array, callback: () => void): void;
+    }
 }
+
+import Volume = PackageManager.Volume;
 
 
 class PackageManager extends EventEmitter {
@@ -224,4 +228,4 @@ const S_IFMT = 0o170000,
 
 
 
-export { PackageManager, Volume, Resource, ResourceBlob, ResourceBundle, DownloadProgress }
+export { PackageManager, Resource, ResourceBlob, ResourceBundle, DownloadProgress }

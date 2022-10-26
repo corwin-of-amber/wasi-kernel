@@ -4,7 +4,8 @@
     "main": "build/kremlin/shell.html",
     "dependencies": {
         "concat-stream": "^2.0.0",
-        "tar-stream": "^2.2.0"
+        "tar-stream": "^2.2.0",
+        "wasi-kernel": "file:../.."
     },
     "devDependencies": {
         "@types/concat-stream": "^2.0.0",

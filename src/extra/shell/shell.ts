@@ -1,10 +1,15 @@
+/**
+ * A shell that can execute subprocesses using a worker pool.
+ * This is here mostly for testing purposes, but is also used as a
+ * bases for more fully-fledged terminal emulation apps in other
+ * packages (`basin-desktop`).
+ */
+import path from 'path';
 import { EventEmitter } from 'events';
 
-import { Process, Volume, SharedVolume } from '../../../../src/kernel';
+import { Process, Volume, SharedVolume } from '../../kernel';
 import { WorkerPool, ProcessLoader, WorkerPoolItem, SpawnArgs } 
-       from '../../../../src/kernel/services/worker-pool';
-
-import path from 'path';
+       from '../../kernel/services';
 
 
 

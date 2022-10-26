@@ -2,13 +2,13 @@
   "compilerOptions": {
     "target": "es2020",
     "module": "esnext",
-    "lib": ["es2020", "dom", "webworker"],
-    "moduleResolution": "node",
+    "lib": ["es2022", "dom", "webworker"],
+    "moduleResolution": "nodenext",
     "esModuleInterop": true,
     "downlevelIteration": true,
     "declaration": true,
-    "outDir": "lib",
-    "rootDir": "src"
+    "rootDir": "src",
+    "outDir": "lib"
   },
   "include": ["src"]
 }
