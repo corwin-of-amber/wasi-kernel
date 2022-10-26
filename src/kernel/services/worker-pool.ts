@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { WorkerProcess } from '../process';
+import { WorkerProcess, WorkerProcessStartupOptions } from '../process';
 
 
 
@@ -16,19 +16,21 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
     free: WorkerPoolItem[]
 
     loader: ProcessLoader
+    opts: WorkerProcessStartupOptions
 
-    constructor() {
+    constructor(opts: WorkerProcessStartupOptions = {}) {
         super();
         this.running = new Set;
         this.free = [];
-        this.loader = this;
+        this.loader = this;  // can be customized
+        this.opts = opts;
     }
 
     spawn(wasm: string, argv: string[], env?: {}): WorkerPoolItem {
         var p = this.free.pop();
         if (!p) {
             p = {
-                process: new WorkerProcess(null),
+                process: new WorkerProcess(null, this.opts),
                 promise: null
             };
             p.process.on('tty:data', x => this.emit('worker:data', p, x));
