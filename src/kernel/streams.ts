@@ -38,7 +38,9 @@ class SimplexStream extends EventEmitter {
     to(): SimplexStreamProps {
         // only supported for `SharedQueue`, used to transfer between worker threads
         assert(this.queue instanceof SharedQueue);
-        return {queue: (this.queue as SharedQueue<Uint8Array>).to(), meta: this.meta};
+        return {shared: this.shared,
+                queue: (this.queue as SharedQueue<Uint8Array>).to(),
+                meta: this.meta};
     }
 
     get length() {
