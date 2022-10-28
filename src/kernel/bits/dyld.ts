@@ -134,17 +134,18 @@ namespace DynamicLibrary {
         }
 
         instantiate(core: ExecCore) {
-            var stack_base = core.wasi.memory.buffer.byteLength,
+            var memory = core.wasm.instance.exports.memory as WebAssembly.Memory,
+                stack_base = memory.buffer.byteLength,
                 mem_base = stack_base + this.stackSize,
                 tbl_base = core.proc.funcTable.length;
 
-            core.wasi.memory.grow(this.memBlocks);
+            memory.grow(this.memBlocks);
             core.proc.funcTable.grow(this.tblSize);
 
             var globals = this.globals(this.module, core.wasm.instance);
             var instance = new WebAssembly.Instance(this.module, {
                 env: { 
-                    memory: core.wasi.memory,
+                    memory: memory,
                     table: core.proc.funcTable,         // <--- Emscripten
                     __indirect_function_table: core.proc.funcTable,
                     __memory_base: mem_base,

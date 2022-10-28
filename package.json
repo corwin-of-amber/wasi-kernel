@@ -12,6 +12,7 @@
       "types": "./lib/kernel/index.d.ts",
       "import": "./lib/kernel/index.js"
     },
+    "./bits/tty": "./src/kernel/bits/tty.ts",
     "./services": "./src/kernel/services/index.ts",
     "./extra/shell": "./src/extra/shell/shell.ts"
   },

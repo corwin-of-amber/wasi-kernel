@@ -12,6 +12,7 @@ var names = [
     "getpwnam",
     "getpwnam_r",
     "getpwent",
+    "getgrnam",
     "tcsetpgrp",
     "kill",
     "killpg",
@@ -104,6 +105,8 @@ var names = [
     "pclose",
     "sync",
     "nice",
+    "major",
+    "minor",
     "errx",        //???
     "vwarnx",      //???
     // posix

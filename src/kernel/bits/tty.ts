@@ -49,6 +49,7 @@ class Tty extends EventEmitter {
     // Overrides for WASI.wasiImports
     // ------------------------------
 
+    /* @todo *possibly* no longer needed?
     fd_fdstat_set_flags(fd: number, flags: number) {
         this.debug(`fdstat_set_flags(${fd}, ${flags})\n`);
         if (fd === 0) {
@@ -65,7 +66,7 @@ class Tty extends EventEmitter {
             this.core.proc.mem.setUint16(bufPtr + 2, this.stdin_fl, true);
         }
         return ret;
-    }
+    } */
 
     defaultWindow() {
         var win = new Uint16Array(new SharedArrayBuffer(4));
@@ -75,7 +76,7 @@ class Tty extends EventEmitter {
     }
 
     get overrideImport() {
-        return bindAll(this, ['fd_fdstat_get', 'fd_fdstat_set_flags']);
+        return bindAll(this, [/*'fd_fdstat_get', 'fd_fdstat_set_flags'*/]);
     }
 
     get import() {
