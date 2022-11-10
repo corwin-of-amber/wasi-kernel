@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
-import { WorkerProcess, WorkerProcessStartupOptions } from '../process';
+import { ProcessBase as Process, WorkerProcess,
+         WorkerProcessStartupOptions } from '../process';
 
 
 
@@ -53,7 +54,7 @@ class WorkerPool extends EventEmitter implements ProcessLoader {
         item.process.exec(spawnArgs.wasm, spawnArgs.argv);
     }
 
-    handleSpawns(parent: WorkerProcess) {
+    handleSpawns(parent: Process) {
         parent.on('syscall', (e) => {
             if (e.func == 'spawn') {
                 let d = e.data;

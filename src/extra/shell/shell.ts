@@ -15,14 +15,13 @@ import { WorkerPool, ProcessLoader, WorkerPoolItem, SpawnArgs }
 
 class Shell extends EventEmitter implements ProcessLoader {
 
-    mainProcess: Process
     fgProcesses: Process[]
     pool: WorkerPool
     env: {[name: string]: string}
     files = new Map<string, string>()
     volume: Volume = undefined;
 
-    constructor() {
+    constructor(rootProcess?: Process) {
         super();
         this.fgProcesses = [];
         this.pool = new WorkerPool();
@@ -30,6 +29,11 @@ class Shell extends EventEmitter implements ProcessLoader {
         this.pool.on('worker:data', (_, x) => this.emit('data', x));
         this.env = {PATH: '/bin', HOME: '/home', TERM: 'xterm-256color'};
         this.volume = undefined;
+
+        if (rootProcess) {
+            this.fgProcesses.unshift(rootProcess);
+            this.pool.handleSpawns(rootProcess);
+        }
     }
 
     spawn(prog: string, argv: string[], env?: {[name: string]: string}) {
@@ -55,8 +59,13 @@ class Shell extends EventEmitter implements ProcessLoader {
         p.promise
             .then(<any>((ev: {code:number}) => console.log(`${prog} - exit ${ev.code}`)))
             .catch((e: Error) => console.error(`${prog} - error;`, e))
-            .finally(() => this.fgProcesses[0] === p.process 
-                            && this.fgProcesses.shift());
+            .finally(() => {
+                /** @oops this only allows a linear process stack */
+                if (this.fgProcesses[0] === p.process) {
+                    this.fgProcesses.shift();
+                    this.fgProcesses[0]?.sigvec.send(17 /*SIGCHLD*/)
+                }
+            });
 
         return p;
     }
