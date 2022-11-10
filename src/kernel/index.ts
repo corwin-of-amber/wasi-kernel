@@ -7,9 +7,10 @@ export { Volume, MemFSVolume, SharedVolume } from './services/fs';
 
 import { init as wasi_init } from '@wasmer/wasi/lib';
 
-const WASI_BG_URI = './wasmer_wasi_js_bg.wasm';
+import WASI_BG_URI from '@wasmer/wasi/pkg/wasmer_wasi_js_bg.wasm';
+
 var _init: Promise<void> = undefined;
-export async function init(wasmerWasmUri: string = WASI_BG_URI) {
+export async function init(wasmerWasmUri: string = <any>WASI_BG_URI) {
     await (_init ??= wasi_init(_fetch(wasmerWasmUri)));
 }
 

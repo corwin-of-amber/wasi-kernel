@@ -1,4 +1,6 @@
 const webpack = require('webpack');
+const nodeExternals = require('webpack-node-externals');
+const TerserPlugin = require('terser-webpack-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 const base = (argv) => ({
@@ -6,7 +8,14 @@ const base = (argv) => ({
     devtool: argv.mode !== 'production' ? "source-map" : undefined,
     stats: {
       hash: false, version: false, modules: false  // reduce verbosity
-    }  
+    },
+    optimization: {
+      minimizer: [
+        new TerserPlugin({  /* this is a hack because wasmer-js checks the class name */
+          terserOptions: { keep_fnames: /^MemFS$/ }
+        })  
+      ]
+    },
   });
 const ts = {
   test: /\.tsx?$/,
@@ -19,6 +28,8 @@ const wasm = {
   test: /\.wasm$/,
   type: 'asset/resource'
 };
+const modules = (modnames) =>
+  Object.fromEntries(modnames.map(m => [m, `module ${m}`]));
 
 module.exports = (env, argv) => [{
   name: 'worker',
@@ -50,7 +61,6 @@ module.exports = (env, argv) => [{
 },
 {
     name: 'esm',
-    //target: 'node',
     entry: './src/kernel/index.ts',
     ...base(argv),
     experiments: {
@@ -65,5 +75,25 @@ module.exports = (env, argv) => [{
     resolve: {
       extensions: [ '.ts', '.js' ],
     },
-    externals: ['fs', 'path', 'buffer', 'worker_threads', /^@wasmer/]
+    externalsType: 'module',
+    externals: {
+      ...modules(['fs', 'path', 'worker_threads']),
+      '@wasmer/wasi/lib': 'module @wasmer/wasi'
+    }
+  },
+{
+  name: 'cjs',
+  target: 'node',
+  entry: './src/kernel/index.ts',
+  ...base(argv),
+  output: {
+    filename: 'index.cjs.js',
+    path: `${__dirname}/lib/kernel`,
+    library: {type: 'commonjs'}
+  },
+  module: {rules: [ts, wasm]},
+  resolve: {
+    extensions: [ '.ts', '.js' ],
+  },
+  externals: [{'@wasmer/wasi/lib': 'commonjs @wasmer/wasi'}, nodeExternals()]
 }];
