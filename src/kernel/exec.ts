@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { EventEmitter } from 'events';
-import { isBrowser, isWebWorker } from 'browser-or-node';
+import { isNode, isBrowser, isWebWorker } from 'browser-or-node';
 
 // Importing Wasmer-js from `/lib` avoids some code duplication in
 // generated bundle and skips bundling `wasi_wasm_js_bg.wasm`.
@@ -268,8 +268,8 @@ class ExecCore extends EventEmitter {
         };
     }
 
-    mountFs(raw: ArrayBuffer) {
-        this.fs = new SharedVolume(raw);
+    mountFs(volume: Volume) {
+        this.fs = volume;
 
         // need to recreate WASI with the new fs
         this._mkWASI();
@@ -284,19 +284,19 @@ class ExecCore extends EventEmitter {
     }
 
     _debugPrint() {
-        return (global.process) ? /* console is funky in Node worker threads */
+        return (isNode) ? /* console is funky in Node worker threads */
             (...args: any) => this.emitWrite(2, utf8encode(args.join(" ")+'\n'))
           : console.log;
     }
 
     _tracePrint() {
-        return (global.process) ? /* console is funky in Node worker threads */
+        return (isNode) ? /* console is funky in Node worker threads */
             (ui8a: Uint8Array) => this.emitWrite(2, ui8a)
           : (ui8a: Uint8Array) => console.warn('[trace]', utf8decode(ui8a), ui8a);
     }
 
     _tracePrintAny() {
-        return (global.process) ? /* console is funky in Node worker threads */
+        return (isNode) ? /* console is funky in Node worker threads */
             (...args: any) => this.emitWrite(2, utf8encode(args.toString()))
           : (...args: any) => console.warn('[trace]', ...args);
     }

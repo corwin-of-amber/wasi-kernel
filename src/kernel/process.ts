@@ -99,7 +99,7 @@ class WorkerProcess extends ProcessBase {
     }
 
     mountFs(volume: SharedVolume) {
-        this.worker.postMessage({storage: volume.storage});
+        this.worker.postMessage({volume: {storage: volume.storage}});
         return this;
     }
 
@@ -126,6 +126,7 @@ class BareProcess extends ProcessBase {
     }
 
     async exec(wasm: string, argv?: string[]) {
+        // @ts-ignore
         const {ExecCore} = await import('./exec');  // on-demand import
 
         this.core = new ExecCore({argv, ...this.opts});

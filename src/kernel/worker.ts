@@ -4,7 +4,7 @@
 import path from 'path';
 
 import { ExecCore } from "./exec";
-import { SharedVolume } from "./services/shared-fs";
+import { SharedVolume } from "./services/fs";
 import { postMessage, onMessage } from './bindings/workers';
 
 
@@ -27,7 +27,7 @@ onMessage(async (ev) => {
         }
     }
     if (ev.data.volume) {
-        core.mountFs(ev.data.volume.storage);
+        core.mountFs(SharedVolume.from(ev.data.volume));
     }
     if (ev.data.dyld) {
         for (let lib of ev.data.dyld.preload || []) {
