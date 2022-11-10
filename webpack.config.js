@@ -60,27 +60,27 @@ module.exports = (env, argv) => [{
   ]
 },
 {
-    name: 'esm',
-    entry: './src/kernel/index.ts',
-    ...base(argv),
-    experiments: {
-      outputModule: true
-    },
-    output: {
-      filename: 'index.js',
-      path: `${__dirname}/lib/kernel`,
-      library: {type: 'module'}
-    },
-    module: {rules: [ts, wasm]},
-    resolve: {
-      extensions: [ '.ts', '.js' ],
-    },
-    externalsType: 'module',
-    externals: {
-      ...modules(['fs', 'path', 'worker_threads']),
-      '@wasmer/wasi/lib': 'module @wasmer/wasi'
-    }
+  name: 'esm',
+  entry: './src/kernel/index.ts',
+  ...base(argv),
+  experiments: {
+    outputModule: true
   },
+  output: {
+    filename: 'index.js',
+    path: `${__dirname}/lib/kernel`,
+    library: {type: 'module'}
+  },
+  module: {rules: [ts, wasm]},
+  resolve: {
+    extensions: [ '.ts', '.js' ],
+  },
+  externalsType: 'module',
+  externals: {
+    ...modules(['fs', 'path', 'worker_threads']),
+    '@wasmer/wasi/lib': 'module @wasmer/wasi'
+  }
+},
 {
   name: 'cjs',
   target: 'node',
