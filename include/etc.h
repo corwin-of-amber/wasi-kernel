@@ -1,4 +1,16 @@
+/**
+ * Ambient prelude of wasi-kernel C applications.
+ * Included by wasi-kit via `-include` in all compilation units.
+ */
+
 #pragma once
+
+/* these are pesky */
+#ifndef WASIK_PURIST
+# define _WASI_EMULATED_MMAN
+# define _WASI_EMULATED_PROCESS_CLOCKS
+# define _WASI_EMULATED_GETPID
+#endif
 
 #ifdef __cplusplus
 #define restrict
@@ -17,29 +29,31 @@
 #include <bits/alltypes.h>
 
 
-#define __WASI_EXTERNAL_NAME(name) \
+#define __WASIK_EXTERNAL_NAME(name) \
     __attribute__((__import_module__("wasik_ext"), __import_name__(#name)))
 
 
 typedef struct _IO_FILE FILE;
 
 static const int F_DUPFD = 0;
-#define AT_FDCWD (-100)
+#if defined(WASI_SDK) && WASI_SDK < 14
+# define AT_FDCWD (-2)
+#endif
 
 
 WASI_C_START
 
-extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASI_EXTERNAL_NAME(dupfd);
-extern int __wasi_tty_ioctl(int fd, int request, void *buf) __WASI_EXTERNAL_NAME(tty_ioctl);
+extern int __wasi_dupfd(int fd, int minfd, int cloexec) __WASIK_EXTERNAL_NAME(dupfd);
+extern int __wasi_tty_ioctl(int fd, int request, void *buf) __WASIK_EXTERNAL_NAME(tty_ioctl);
 
-extern void __wasi_trace(const char *) __WASI_EXTERNAL_NAME(trace);
-extern void __wasi_sorry(void *) __WASI_EXTERNAL_NAME(sorry);
+extern void __wasi_trace(const char *) __WASIK_EXTERNAL_NAME(trace);
+extern void __wasi_sorry(void *) __WASIK_EXTERNAL_NAME(sorry);
 
 void *malloc(size_t);
 
 /* stdlib.h */
 
-extern int __wasi_progname_get(char **pbuf) __WASI_EXTERNAL_NAME(progname_get);
+extern int __wasi_progname_get(char **pbuf) __WASIK_EXTERNAL_NAME(progname_get);
 
 static inline const char *getprogname() {
      static char *buf = 0;
@@ -214,7 +228,7 @@ char *
 int
      ttyname_r(int fd, char *buf, size_t len);
 
-extern int __wasi_login_get(char **pbuf) __WASI_EXTERNAL_NAME(login_get);
+extern int __wasi_login_get(char **pbuf) __WASIK_EXTERNAL_NAME(login_get);
 
 static inline char *getlogin() {
      static char *buf = 0;

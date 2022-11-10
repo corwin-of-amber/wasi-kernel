@@ -29,7 +29,7 @@ __control_setjmp_set_return(jmp_buf env, setjmp_ret_val ret_val) {
 /* (wasi-libc provides a fallback implementation that aborts) */
 static void _Block_object_dispose(const void *p, int val) 
     __attribute__ ((unused));
-static void _Block_object_dispose(const void *p, int val) { } 
+static void _Block_object_dispose(const void *p, int val) { (void)p; (void)val; } 
 
 
 WASI_C_END

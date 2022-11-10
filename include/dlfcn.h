@@ -10,7 +10,7 @@ void*
 int
      dlclose(void* handle);
 
-extern int __wasi_dlerror_get(char **buf) __WASI_EXTERNAL_NAME(dlerror_get);
+extern int __wasi_dlerror_get(char **buf) __WASIK_EXTERNAL_NAME(dlerror_get);
 
 static inline const char* dlerror(void) {
      char *buf = 0;
