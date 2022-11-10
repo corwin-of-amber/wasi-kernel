@@ -1,6 +1,5 @@
 var names = [
     "signal",
-    "raise",
     "pipe",
     "dup",
     "dup2",
@@ -25,8 +24,6 @@ var names = [
     "setpgrp",
     "issetugid",
     "strsignal",
-    "wait4",
-    "waitpid",
     "getuid",
     "geteuid",
     "getgid",
@@ -40,6 +37,7 @@ var names = [
     "umask",
     "getrlimit",
     "setrlimit",
+    "getrusage",
     "getpriority",
     "setpriority",
     "sigfillset",
@@ -81,6 +79,7 @@ var names = [
     "lchflags",
     "chroot",
     "getgroups",
+    "times",
     "utimes",
     "futimes",
     "lutimes",
@@ -107,6 +106,7 @@ var names = [
     "nice",
     "major",
     "minor",
+    "clock",
     "errx",        //???
     "vwarnx",      //???
     // posix

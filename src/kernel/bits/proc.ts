@@ -90,9 +90,10 @@ class Proc extends EventEmitter {
                 'geteuid', 'strmode',
                 '__control_setjmp', '__control_setjmp_with_return',
                 'setjmp', 'longjmp', 'sigsetjmp', 'siglongjmp',
-                'vfork', '__control_fork', 'wait', 'wait3', 'execve',
-                'sigkill', 'sigsuspend', 'sigaction',
+                'fork', '__control_fork', 'wait', 'wait3', 'wait4', 'waitpid',
+                'execve', 'raise', 'sigsuspend', 'sigaction',
                 'getpagesize', 'posix_spawn']),
+            vfork: this.fork.bind(this),
             ...this.dyld.import
         };
     }
@@ -211,13 +212,10 @@ class Proc extends EventEmitter {
 
         var newfd = this.newfd(minfd);
         this.core.wasi.FD_MAP.set(newfd, this.dupdesc(desc));
-        return newfd;*/
+        return newfd;
     }
 
-    dupdesc(desc: {real: number}): any /* File is not exported from @wasmer/wasi */ {
-        console.warn('[wasi-kernel] `dupdesc` implementation is deferred');
-        return -1;
-        /*
+    dupdesc(desc: {real: number}): any /* `File` is not exported from @wasmer/wasi * {
         // A hack to get a new "real" fd
         var newreal = this.core.wasmFs.volume.openSync('/', 'r');
         // - this heavily relies on the memfs implementation of Volume
@@ -281,8 +279,8 @@ class Proc extends EventEmitter {
         this.longjmp(env, val);
     }
 
-    vfork() {
-        this.core.trace.syscalls('vfork()');
+    fork() {
+        this.core.trace.syscalls('fork()');
         var pid = Math.max(0, ...this.childset) + 1;
         this.childset.add(pid);
         this.onJoin = (onset: ExecvCall | Error) => {
@@ -295,6 +293,7 @@ class Proc extends EventEmitter {
             }
             else throw onset;
         };
+        this.core.trace.syscalls(` -> ${pid}`);
         return pid;
     }
 
@@ -344,13 +343,24 @@ class Proc extends EventEmitter {
 
     wait3(stat_loc: i32, options: i32, rusage: i32) {
         this.core.trace.syscalls(`wait3(${stat_loc}, ${options}, ${rusage})`);
-        return this.waitBase(stat_loc);
+        return this.waitBase(stat_loc, !!(options & 1));
+    }
+
+    wait4(pid: i32, stat_loc: i32, options: i32, rusage: i32) {
+        this.core.trace.syscalls(`wait4(${pid}, ${stat_loc}, ${options}, ${rusage})`);
+        return this.waitBase(stat_loc, !!(options & 1));
+    }
+
+    waitpid(pid: i32, stat_loc: i32, options: i32) {
+        this.core.trace.syscalls(`waitpid(${pid}, ${stat_loc}, ${options})`);
+        return this.waitBase(stat_loc, !!(options & 1));
     }
     
-    waitBase(stat_loc: i32) {
+    waitBase(stat_loc: i32, wnohang: boolean = false) {
+        if (wnohang && this.childq.isEmpty()) return 0;
         var pid = this.childq.dequeue(),
             exitcode = this.childq.dequeue();
-        this.debug(`  -> ${pid}`);
+        this.core.trace.syscalls(`  -> ${pid}`);
         if (stat_loc !== 0)
             this.mem.setUint32(stat_loc, exitcode << 8, true);
         return pid;
@@ -398,11 +408,13 @@ class Proc extends EventEmitter {
     // Signals Part
     // ------------
 
-    sigkill(signum: number) {
+    raise(signum: number) {
+        this.core.trace.syscalls(`raise(${signum})`);
         this.sigvec.send(signum);
     }
 
-    sigsuspend(/* ... */) {
+    sigsuspend(sigmask: i32 /* (sigset_t*) */) {
+        this.core.trace.syscalls(`sigsuspend(${sigmask})`);
         this.sigvec.receive();
     }
 
@@ -473,7 +485,7 @@ class SignalVector extends EventEmitter {
     receive(signums?: number[]) {
         if (!this._snapshot) this._snapshot = new Int32Array(NSIG);
 
-        Atomics.wait(this.wait, 0, Atomics.load(this.wait, 0));
+        //Atomics.wait(this.wait, 0, Atomics.load(this.wait, 0));
 
         this.sweep(signums);
         return -1;
@@ -543,8 +555,9 @@ const MaybeSharedArrayBuffer = typeof SharedArrayBuffer != 'undefined'
     ? SharedArrayBuffer : ArrayBuffer;
 
 function bindAll(instance: any, methods: string[]) {
-    return methods.reduce((d, m) =>
-        Object.assign(d, {[m]: instance[m].bind(instance)}), {});
+    return Object.fromEntries(methods.map(m =>
+    //methods.reduce((d, m) =>
+        [m, instance[m].bind(instance)]));
 }
 
 
