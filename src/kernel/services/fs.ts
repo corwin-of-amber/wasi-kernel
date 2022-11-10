@@ -21,6 +21,9 @@ interface Volume {
     readdirSync(dirpath: string): string[]
     readdir(dirpath: string, callback: (err: Error, ret: string[]) => void): void
 
+    statSync(pathname: string): Stat
+    stat(pathname: string, callback: (err: Error, ret: Stat) => void): void
+
     promises?: VolumePromises
 }
 
@@ -28,6 +31,14 @@ interface VolumePromises {
     readdir(dirpath: string): Promise<string[]>
     readFile(filename: string): Promise<Uint8Array>
     readFile(filename: string, encoding: 'utf-8'): Promise<string>
+
+    stat(pathname: string): Promise<Stat>
+}
+
+interface Stat {
+    isDirectory(): boolean
+    isFile(): boolean
+    get size(): number
 }
 
 /**
@@ -40,9 +51,10 @@ class MemFSVolume implements Volume {
     constructor(fs: MemFS = new MemFS) {
         this._ = fs;
         this.promises = {
-            readdir: promisify(this.readdir),
+            readdir: promisify(this.readdir.bind(this)),
             // @ts-ignore
-            readFile: promisify(this.readFile)
+            readFile: promisify(this.readFile),
+            stat: promisify(this.stat)
         };
     }
     mkdirSync(filename: string, options?: { recursive: boolean; }): void {
@@ -99,6 +111,21 @@ class MemFSVolume implements Volume {
         catch (e) { callback(e, undefined); return; }
         callback(null, ret);
     }
+
+    statSync(pathname: string): Stat {
+        let metadata = this._.metadata(pathname) as any;
+        return {
+            isDirectory() { return metadata.filetype.dir; },
+            isFile() { return metadata.filetype.file; },
+            size: Number(metadata.len) // `len` is BigInt
+            /** @todo more fields */
+        };
+    }
+    stat(pathname: string, callback: (err: Error, ret: Stat) => void): void {
+        try { var ret = this.statSync(pathname); }
+        catch (e) { callback(e, undefined); return; }
+        callback(null, ret);        
+    }
 }
 
 
@@ -108,6 +135,13 @@ class SharedVolume extends MemFSVolume {
     constructor(storage: ArrayBuffer) {
         super(MemFS.new_with_storage(storage));
         this.storage = storage;
+    }
+
+    to() { return {storage: this.storage}; }
+
+    static from(props: {storage: ArrayBuffer}) {
+        assert(props.storage, 'invalid SharedVolume props');
+        return new this(props.storage);
     }
 }
 
