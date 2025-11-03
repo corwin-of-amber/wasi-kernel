@@ -9,6 +9,7 @@
   },
   "side-effects": false,
   "scripts": {
+    "prepare": "npm run build",
     "autogen": "node scripts/autogen-delegation.js",
     "build": "webpack --mode production && tsc --emitDeclarationOnly",
     "build:app": "parcel build shell.html",
