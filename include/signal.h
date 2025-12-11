@@ -8,6 +8,8 @@
 
 WASI_C_START
 
+/* skip if wasix-libc is used, which already defines these */
+#ifndef SIG_BLOCK
 
 typedef int siginfo_t;
 
@@ -55,5 +57,6 @@ enum __sa_flags {
 // Signal numbers
 #include <bits/alltypes.h>
 
+#endif
 
 WASI_C_END

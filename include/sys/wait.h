@@ -6,6 +6,9 @@
 
 WASI_C_START
 
+/* skip if wasix-libc is used, which already defines these */
+#ifndef WNOHANG
+
 /*
  * Option bits for the third argument of wait4.  WNOHANG causes the
  * wait to not hang if there are no stopped or terminated processes, rather
@@ -17,6 +20,8 @@ WASI_C_START
  */
 #define WNOHANG         0x00000001  /* [XSI] no hang in wait/no child to reap */
 #define WUNTRACED       0x00000002  /* [XSI] notify on stop, untraced child */
+
+#endif
 
 /*
  * Macros to test the exit status returned by wait
@@ -33,6 +38,7 @@ WASI_C_START
  * [XSI] The <sys/wait.h> header shall define the following macros for
  * analysis of process status values
  */
+#ifndef WEXITSTATUS
 #define WEXITSTATUS(x)  ((_W_INT(x) >> 8) & 0x000000ff)
 /* 0x13 == SIGCONT */
 #define WSTOPSIG(x)     (_W_INT(x) >> 8)
@@ -41,11 +47,13 @@ WASI_C_START
 #define WIFEXITED(x)    (_WSTATUS(x) == 0)
 #define WIFSIGNALED(x)  (_WSTATUS(x) != _WSTOPPED && _WSTATUS(x) != 0)
 #define WTERMSIG(x)     (_WSTATUS(x))
+#endif
 #define WCOREDUMP(x)    (_W_INT(x) & WCOREFLAG)
 
+#ifndef W_EXITCODE
 #define W_EXITCODE(ret, sig)    ((ret) << 8 | (sig))
 #define W_STOPCODE(sig)         ((sig) << 8 | _WSTOPPED)
-
+#endif
 
 pid_t
      wait(int *stat_loc);
@@ -58,6 +66,5 @@ pid_t
 
 pid_t
      waitpid(pid_t pid, int *stat_loc, int options);
-
 
 WASI_C_END

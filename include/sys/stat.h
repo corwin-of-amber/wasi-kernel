@@ -27,4 +27,11 @@ int
      __wasik_lstat(const char *restrict path, struct stat *restrict buf);
 
 
+
+ int
+     mknod(const char *path, mode_t mode, dev_t dev);
+
+ int
+     mknodat(int fd, const char *path, mode_t mode, dev_t dev);
+
 WASI_C_END

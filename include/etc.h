@@ -7,9 +7,15 @@
 
 /* these are pesky */
 #ifndef WASIK_PURIST
-# define _WASI_EMULATED_MMAN
-# define _WASI_EMULATED_PROCESS_CLOCKS
-# define _WASI_EMULATED_GETPID
+# ifndef _WASI_EMULATED_MMAN
+#  define _WASI_EMULATED_MMAN
+# endif
+# ifndef _WASI_EMULATED_PROCESS_CLOCKS
+#  define _WASI_EMULATED_PROCESS_CLOCKS
+# endif
+# ifndef _WASI_EMULATED_GETPID
+#  define _WASI_EMULATED_GETPID
+# endif
 #endif
 
 #ifdef __cplusplus
@@ -55,7 +61,7 @@ void *malloc(size_t);
 
 extern int __wasi_progname_get(char **pbuf) __WASIK_EXTERNAL_NAME(progname_get);
 
-static inline const char *getprogname() {
+static inline const char *getprogname(void) {
      static char *buf = 0;
      if (!buf) __wasi_sorry(buf = (char*)malloc(__wasi_progname_get(&buf)));
      return buf;
@@ -95,6 +101,12 @@ void
 int
      fpurge(FILE *stream);
 
+FILE *
+     popen(const char *command, const char *mode);
+
+int
+     pclose(FILE *stream);
+
 /*
 char *
      ctermid(char *buf);
@@ -130,7 +142,10 @@ int
 
 int
      chroot(const char *dirname);
- 
+
+int
+     initgroups(const char *name, int basegid);
+
 int
      getgroups(int gidsetsize, gid_t grouplist[]);
 
@@ -230,7 +245,7 @@ int
 
 extern int __wasi_login_get(char **pbuf) __WASIK_EXTERNAL_NAME(login_get);
 
-static inline char *getlogin() {
+static inline char *getlogin(void) {
      static char *buf = 0;
      if (!buf) __wasi_sorry(buf = (char*)malloc(__wasi_login_get(&buf)));
      return buf;
@@ -251,6 +266,8 @@ void
      strmode(int mode, char *bp);
 
 /* signal.h */
+
+#ifdef NEED_SIGNAL
 
 struct sigaction;
 typedef struct sigaltstack stack_t;
@@ -286,6 +303,8 @@ int
      sigaltstack(const stack_t *restrict ss, stack_t *restrict oss);
 
 #define SIGSTKSZ 1024
+
+#endif
 
 /* sys/stat.h */
 

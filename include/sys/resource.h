@@ -2,6 +2,9 @@
 
 #include_next <sys/resource.h>
 
+/* skip if wasix-libc is used, which already defines these */
+#ifndef RLIM_INFINITY
+
 WASI_C_START
 
 
@@ -43,3 +46,5 @@ int
 
 
 WASI_C_END
+
+#endif
