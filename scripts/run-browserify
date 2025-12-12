@@ -1,2 +1,0 @@
-browserify  -t [ babelify --presets [ @babel/preset-env ] ] -p tsify src/kernel/index.ts -o dist/kernel.iife.js
-browserify  -t [ babelify --presets [ @babel/preset-env ] ] -p tsify src/kernel/index.ts -o dist/kernel.iife.js

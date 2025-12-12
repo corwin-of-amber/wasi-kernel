@@ -4,6 +4,7 @@ const child_process = require('child_process'),
       path = require('path'), fs = require('fs');
 
 const WASI_SDK = process.env['WASI_SDK'] || '/opt/wasi-sdk',
+      WASIX_LIBC = process.env['WASIX_LIBC'],
       WASI_KIT_FLAGS = (process.env['WASI_KIT'] || '').split(',').filter(x => x);
 
 const progs_native = {
@@ -25,6 +26,11 @@ const progs_wasi = {
     'mv':        '/bin/mv',
     'ln':        '/bin/ln'
 };
+
+const polyfills = {
+    clock: [ "-D_WASI_EMULATED_PROCESS_CLOCKS", "-lwasi-emulated-process-clocks"],
+};
+
 
 function main() {
     var prog = path.basename(process.argv[1]),
@@ -108,7 +114,9 @@ class Phase {
         var config = this.getConfig(),
             out = this.getOutput(), native;
 
-        if (out && config[out] && (native = config[out].native) !== undefined
+        if (WASI_KIT_FLAGS.includes('native=false'))
+            return false;
+        else if (out && config[out] && (native = config[out].native) !== undefined
             || config['*'] && (native = config['*'].native) !== undefined)
             return native;
         else
@@ -142,7 +150,7 @@ class Phase {
 
 class Compile extends Phase {
 
-    FLAGS_BOOL = ['-c', '-shared', '-nostdlib']
+    FLAGS_BOOL = ['-c', '-r', '-shared', '-nostdlib', '-pthread']
 
     run(prog, args) {
         this.parseArgs(args);
@@ -207,17 +215,47 @@ class Compile extends Phase {
     }
 
     getIncludeFlags() {
-        var wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf(),
-            flags = [`-I${wasiInc}`, `-I${wasiInc}/c++`,
-                     '-include', `${wasiInc}/etc.h`,
-                     `--sysroot=${WASI_SDK}/share/wasi-sysroot`];
+        var sysroot = this.locateSysroot(WASIX_LIBC ?? `${WASI_SDK}/share`),
+            wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf(),
+            flags = [`--sysroot=${sysroot}`,
+                     `-I${wasiInc}`, `-I${wasiInc}/c++`,
+                     '-include', `${wasiInc}/etc.h`];
+
+        /*
+        flags = [`--sysroot=/Users/corwin/var/workspace/wasi-kernel/wasi-kernel-2/packages/wasix-libc/sysroot`,
+            '-D_WASI_EMULATED_PROCESS_CLOCKS',
+            '-D_WASI_EMULATED_MMAN',
+            '-I/Users/corwin/var/workspace/wasi-kernel/wasi-kernel-2/include',
+            //'-fblocks',
+            //'-matomics',
+            '-mbulk-memory',
+            '-mmutable-globals',
+            '-pthread',
+            '-mthread-model', 'posix',
+            '-ftls-model=local-exec',
+            '-fno-trapping-math',
+        ]; */
+
         if (wasiPreconf) flags.unshift(`-I${wasiPreconf}`);
         return flags;
     }
 
     getLinkFlags(flags) {
-        return (flags['-shared'] || flags['-nostdlib']) ? []
-                : this.buildStartupLib();
+        const wasixFlags = (!WASIX_LIBC || flags['-nostdlib']) ? [] : [
+            '-pthread', /* required for the `tls` symbols */
+            '-Wl,--export-dynamic',
+            '-Wl,--export=__heap_base',
+            '-Wl,--export=__stack_pointer',
+            '-Wl,--export=__data_end',
+            '-Wl,--export=__wasm_init_tls',
+            '-Wl,--export=__wasm_signal',
+            '-Wl,--export=__tls_size',
+            '-Wl,--export=__tls_align',
+            '-Wl,--export=__tls_base'
+        ];
+        return [...wasixFlags,
+                ...(flags['-shared'] || flags['-nostdlib']) ? []
+                    : this.buildStartupLib()];
     }
 
     postProcessArgs(wasmOut, flags, patched) {
@@ -238,17 +276,31 @@ class Compile extends Phase {
     }
 
     report(wasmOut, wasmIn, flags) {
+        if (WASI_KIT_FLAGS.includes('silent')) return;
+
         if (wasmOut) {
             console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
         }
         else {
-            console.log(`  (wasm skipped)`);
+            if (!WASI_KIT_FLAGS.includes('q'))
+                console.log(`  (wasm skipped)`);
             return; 
         }
 
         if (wasmIn && !flags['-c']) {
             for (let inp of wasmIn)
                 console.log(`   - ${inp.fn} [${inp.type}]`);
+        }
+    }
+
+    locateSysroot(dir) {
+        const stat = d => {
+            try { return fs.statSync(d); } catch { return undefined; }
+        };
+
+        for (let subdir of ['sysroot', 'wasi-sysroot']) {
+            let fp = path.join(dir, subdir);
+            if (stat(fp)?.isDirectory()) return fp;
         }
     }
 
@@ -264,7 +316,7 @@ class Compile extends Phase {
         var outdir = '/tmp/wasi-kit-hijack', outfiles = [];
         if (!fs.existsSync(outdir))
             fs.mkdirSync(outdir);
-        for (let fn of ['lib', 'bits/startup']) {
+        for (let fn of [/*'lib', 'bits/startup'*/]) {
             var c = `${this.locateIncludes()}/${fn}.c`,
                 o = path.join(outdir, `${path.basename(fn)}.o`);
             this._exec(progs_wasi['clang'], ['-c', c, '-o', o,
@@ -387,7 +439,7 @@ class Hijack extends Phase {
             if (this.existsDir(inc)) return inc;
             d = path.dirname(d);
         }
-        throw new Error("wasi include directory not found");
+        //throw new Error("wasi include directory not found");
     }
 }
 

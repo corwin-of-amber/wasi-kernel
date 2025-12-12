@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "Preserve",
+    "lib": ["es2022", "dom"],
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "downlevelIteration": true,
+    "declaration": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "outDir": "lib"
+  }
+}

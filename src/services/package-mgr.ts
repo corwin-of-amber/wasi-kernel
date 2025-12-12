@@ -18,8 +18,8 @@ import concat from 'concat-stream';
 
 namespace PackageManager {
     export interface Volume {
-        mkdirSync(filename: string, options: {recursive: boolean}): void;
-        writeFile(filename: string, content: string | Uint8Array, callback: () => void): void;
+        mkdir(filename: string, options: {recursive: boolean}): Promise<void>;
+        writeFile(filename: string, content: string | Uint8Array): Promise<void>;
     }
 }
 
@@ -43,11 +43,11 @@ class PackageManager extends EventEmitter {
     }
 
     async _installFile(filename: string, content: string | Uint8Array) {
-        this.volume.mkdirSync(path.dirname(filename), {recursive: true});
+        await this.volume.mkdir(path.dirname(filename), {recursive: true});
         //if (this.volume instanceof SharedVolume && content instanceof Uint8Array && content.length > (1 << 14))
         //    return this.volume.writeBlob(filename, content);
         //else
-        return new Promise<void>(resolve => this.volume.writeFile(filename, content, resolve));
+        return this.volume.writeFile(filename, content);
     }
 
     installSymlink(filename: string, target: string) {
@@ -91,7 +91,7 @@ class PackageManager extends EventEmitter {
             ui8a = new Uint8Array(await payload.arrayBuffer());  /** @todo streaming? */
         let extract = tar.extract(),
             pending = [];
-        extract.on('entry', (header, stream, next) => {
+        extract.on('entry', async (header, stream, next) => {
             let fullpath = `${rootdir}/${header.name}`, wait = false;
 
             switch (header.type) {
@@ -103,7 +103,7 @@ class PackageManager extends EventEmitter {
                 }));
                 break;
             case 'directory':
-                this.volume.mkdirSync(fullpath, {recursive: true});
+                await this.volume.mkdir(fullpath, {recursive: true});
                 break;
             default:
                 console.warn(`Unrecognized tar entry '${fullpath}' of type '${header.type}'`);
@@ -151,7 +151,7 @@ class PackageManager extends EventEmitter {
                     await this.installArchive(filename, content, (p: DownloadProgress) =>
                         this.emit('progress', {path: filename, uri: uri ?? p.uri, download: p, done: false}));
                 else
-                    this.volume.mkdirSync(filename, {recursive: true});
+                    await this.volume.mkdir(filename, {recursive: true});
             }
             if (verbose)
                 console.log(`%cwrote ${filename} (+${+new Date - start}ms)`, 'color: #99c');

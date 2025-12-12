@@ -1,0 +1,38 @@
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <errno.h>
+
+int main(int argc, char *argv[]) {
+    printf("Main program started\n");
+
+    int pid = vfork();
+    if (pid == -1) {
+        printf("failed to fork - %d", errno);
+        return 1;
+    }
+
+    if (pid == 0) {
+        printf("execve: hello hi-from-child\n");
+        char* argv[] = { "hello", "hi-from-child", NULL };
+        char* envp[] = { NULL };
+        if (execve("/usr/bin/hello", argv, envp) == -1) {
+            perror("Could not execve");
+        }
+    } else {
+        int status = 0;
+        waitpid(pid, &status, 0);
+        fprintf(stderr, "Child(%d) exited with %d\n", pid, status);
+
+/*
+        fprintf(stderr, "execve: echo hi-from-parent\n");
+        char* argv[] = { "echo", "hi-from-parent", NULL };
+        char* envp[] = { NULL };
+        if (execve("/bin/echo", argv, envp) == -1) {
+            perror("Could not execve");
+        }*/
+    }
+
+    return 1;
+}

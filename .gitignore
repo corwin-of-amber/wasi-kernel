@@ -3,9 +3,13 @@ dist
 *.wasm
 *.wat
 .*.swp
+*.o
+*.wo
 *.tgz
 .cache
 /build
 /lib
-/subsidiaries
+/packages
 /_npmlink
+**/build/kremlin
+**/build/worker

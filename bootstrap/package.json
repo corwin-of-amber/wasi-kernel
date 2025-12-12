@@ -1,0 +1,16 @@
+{
+    "name": "wasi-kernel",
+    "version": "0.1.0",
+    "type": "module",
+    "main": "build/kremlin/index.html",
+    "cross_origin_embedder_policy": {
+        "value": "require-corp"
+    },
+    "cross_origin_opener_policy": {
+        "value": "same-origin"
+    },
+    "chromium-args": "--enable-node-worker",
+    "devDependencies": {
+        "@types/node": "^22.10.2"
+    }
+}
