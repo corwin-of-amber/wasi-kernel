@@ -221,6 +221,9 @@ class Compile extends Phase {
                      `-I${wasiInc}`, `-I${wasiInc}/c++`,
                      '-include', `${wasiInc}/etc.h`];
 
+        if (WASIX_LIBC)
+            flags.push('-D__wasix__', '-matomics', '-pthread');
+
         /*
         flags = [`--sysroot=/Users/corwin/var/workspace/wasi-kernel/wasi-kernel-2/packages/wasix-libc/sysroot`,
             '-D_WASI_EMULATED_PROCESS_CLOCKS',

@@ -6,6 +6,10 @@ class Proc {
         syscalls: Trace.NOP
     }
 
+    imports() {
+        return ['__control_setjmp', '__control_setjmp_with_return', 'longjmp']
+            .map(method => [method, this[method].bind(this)]);
+    }
 
     get _mem(): WebAssembly.Memory {
         return this.instance.exports.memory as WebAssembly.Memory;

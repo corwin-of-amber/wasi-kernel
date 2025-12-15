@@ -59,7 +59,7 @@ async function main() {
 
     let vfs = new wasmer.Directory();
     await vfs.createDir('bin');
-    await vfs.writeFile('bin/ls', new Uint8Array([]));
+    await vfs.writeFile('bin/ls', new Uint8Array(fs.readFileSync(busyboxWasm)));
     await vfs.writeFile('bin/touch', new Uint8Array([]));
     await vfs.writeFile('bin/hello', new Uint8Array(fs.readFileSync('hello.wasm')));
     await vfs.createDir('lib');
@@ -74,6 +74,8 @@ async function main() {
 
     await vfs.createDir('share');
     await vfs.writeFile('share/a.ml', fs.readFileSync('a.ml', 'utf-8'));
+
+    //await pm.installArchive('/local/lib/ocaml', new Resource('/ocaml-base.tar'));
 
     Object.assign(window, {vfs});
 
@@ -94,9 +96,6 @@ async function main() {
 
     let pm = new PackageManager(new DirectoryVolumeAdapter(vfs));
     Object.assign(window, {pm});
-
-    //await pm.installArchive('/local/lib/ocaml', new Resource('/ocaml-base.tar'));
-    
 
     const prog = {
         wasmFn: 'hello.wasm',
@@ -191,7 +190,7 @@ async function main() {
         term.write(output.stderr);*/
     }
 
-    runBare();
+    runWasix();
 }
 
 export default main;

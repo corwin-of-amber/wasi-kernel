@@ -5,12 +5,11 @@
     "hello": {
         "native": false,
         "output": "hello.wasm",
-        "args": ["-pthread", "-Wl,--allow-undefined"]
+        "args": ["-Wl,--allow-undefined"]
     },
     "subproc": {
         "native": false,
-        "output": "subproc.wasm",
-        "args": ["-pthread", "-Wl,--allow-undefined"]
+        "output": "subproc.wasm"
     },
     "jump": {
         "native": false,
@@ -18,8 +17,7 @@
     },
     "threads": {
         "native": false,
-        "output": "threads.wasm",
-        "args": ["-pthread", "-Wl,--allow-undefined"]
+        "output": "threads.wasm"
     }
 
 }
