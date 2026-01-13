@@ -35,6 +35,17 @@ int
 int
     sigpending(sigset_t *set);
 
+int
+    sigaddset(sigset_t *set, int signo);
+int
+    sigdelset(sigset_t *set, int signo);
+int
+    sigemptyset(sigset_t *set);
+int
+    sigfillset(sigset_t *set);
+int
+    sigismember(const sigset_t *set, int signo);
+
 static const int SIG_BLOCK   =  0;
 static const int SIG_UNBLOCK =  1;
 static const int SIG_SETMASK =  2;

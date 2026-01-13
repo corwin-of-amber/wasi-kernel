@@ -36,7 +36,7 @@
 
 
 #define __WASIK_EXTERNAL_NAME(name) \
-    __attribute__((__import_module__("wasik_ext"), __import_name__(#name)))
+    __attribute__((__import_module__("wasik"), __import_name__(#name)))
 
 
 typedef struct _IO_FILE FILE;
@@ -369,5 +369,11 @@ int
 
 #define F_SETLKW 0
 
+/* arpa/inet.h */
+
+typedef uint32_t in_addr_t;
+
+in_addr_t
+     inet_addr(const char *cp);
 
 WASI_C_END

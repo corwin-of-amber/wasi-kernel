@@ -15,14 +15,21 @@ setjmp_ret_val __control_setjmp_with_return
 
 static inline void
 __control_setjmp_set_return(jmp_buf env, setjmp_ret_val ret_val) {
-    env[0].ret = 1; env[0].ret_val = ret_val;
+#ifdef __wasix__
+# define e ((struct __wasik_jmp_buf*)env)[0]
+#else
+# define e env[0]
+#endif
+    e.ret = 1; e.ret_val = ret_val;
+#undef e
 }
 
 #define __control_setjmp_return(env, ret_val) \
     __control_setjmp_set_return(env, ret_val); return
 
-#define __control_setjmp_post(env, RTYPE) \
-    if ((env)[0].ret) return (RTYPE)((env)[0].ret_val)
+// @obsolete?
+//#define __control_setjmp_post(env, RTYPE) \
+//    if ((env)[0].ret) return (RTYPE)((env)[0].ret_val)
 
 
 /* This is a must when using __block variables */
