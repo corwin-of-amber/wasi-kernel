@@ -4,20 +4,13 @@ const child_process = require('child_process'),
       path = require('path'), fs = require('fs');
 
 const WASI_SDK = process.env['WASI_SDK'] || '/opt/wasi-sdk',
-      WASIX_LIBC = process.env['WASIX_LIBC'],
+      WASIX_LIBC = process.env['WASIX_LIBC'] || '/opt/wasix-libc',
       WASI_KIT_FLAGS = (process.env['WASI_KIT'] || '').split(',').filter(x => x);
 
-const progs_native = {
-    'gcc':       '/usr/bin/gcc',
-    'g++':       '/usr/bin/g++',
-    'clang':     '/usr/bin/clang',
-    'clang++':   '/usr/bin/clang++',
-    'ar':        '/usr/bin/ar',
-    'mv':        '/bin/mv',
-    'ln':        '/bin/ln'
-};
 
 const progs_wasi = {
+    'cc':        `${WASI_SDK}/bin/clang`,
+    'c++':       `${WASI_SDK}/bin/clang++`,
     'gcc':       `${WASI_SDK}/bin/clang`,
     'g++':       `${WASI_SDK}/bin/clang++`,
     'clang':     `${WASI_SDK}/bin/clang`,
@@ -37,6 +30,7 @@ function main() {
         args = process.argv.slice(2);
 
     const PHASES = {
+        'cc': Compile, 'c++': Compile,
         'gcc': Compile, 'g++': Compile,
         'clang': Compile, 'clang++': Compile,
         'ar': Archive,
@@ -71,13 +65,16 @@ function patchOutput(filename, config={}) {
     else if (filename.match(/[.]a$/)) {
         return {type: 'lib-archive', fn: filename.replace(/[.]a$/, '.wa')}
     }
+    else if (filename.match(/[.]s$/)) {
+        return {type: 'skip'};
+    }
 }
 
 function patchArgument(arg, config={}, wasmIn=undefined) {
     if (!arg.startsWith('-')) {
         let inp = patchOutput(arg, config);
         if (inp) {
-            if (fs.existsSync(inp.fn)) {
+            if (!inp.fn || fs.existsSync(inp.fn)) {
                 if (wasmIn) wasmIn.push(inp);
                 return inp.fn;
             }
@@ -96,7 +93,8 @@ class Phase {
     }
 
     runNative(prog, args) {
-        this._exec(progs_native[prog], args);
+        let h = new Hijack();
+        this._exec(h.which(prog, h.unhijackedPath()), args);
     }
 
     runWasm(prog, args) {
@@ -123,16 +121,38 @@ class Phase {
             return true;
     }
     
-    _exec(prog, args) {
+    _exec(prog, args, envvars={}) {
         if (WASI_KIT_FLAGS.includes('verbose')) {
             console.log('[wasi-kit]  ', prog, args.join(' '));
         }
-        return child_process.execFileSync(prog, args, {stdio: 'inherit'});
+        return child_process.execFileSync(prog, args, {
+            stdio: 'inherit',
+            env: {...process.env, envvars}
+        });
     }
 
     getConfig() {
         var fn = this.closest('wasi-kit.json');
         return fn ? JSON.parse(fs.readFileSync(fn, 'utf-8')) : {};
+    }
+
+    getConfigFor(target) {
+        let config = this.getConfig();
+        return config[target] ?? config['*'] ?? {};
+    }
+
+    getConfigForCurrent() {
+        return this.getConfigFor(this.getOutput() ?? '*');
+    }
+
+    isWasix() {
+        return WASI_KIT_FLAGS.includes['wasix'] ||
+            (this.getConfigForCurrent().wasix ?? this.getConfig().wasix);
+    }
+
+    isAsyncify() {
+        return this.getConfigForCurrent().asyncify ??
+                this.getConfig().asyncify ?? this.isWasix();
     }
 
     closest(basename, that_has = undefined) {
@@ -155,6 +175,15 @@ class Compile extends Phase {
     run(prog, args) {
         this.parseArgs(args);
         super.run(prog, args);
+        this.postprocess(prog, args);
+    }
+
+    postprocess(prog, args) {
+        let config = this.getConfig(),
+            out = this.getOutput();
+
+        if (config[out]?.output && this.isAsyncify())
+            this.wasmOpt(config[out]?.output);
     }
 
     getOutput() {
@@ -196,7 +225,7 @@ class Compile extends Phase {
             }
         }
 
-        if (wasmOut && config[wasmOut.fn] === 'skip')
+        if (wasmOut && config[wasmOut.fn] === 'skip' || wasmIn.find(inp => inp.type === 'skip'))
             wasmOut = undefined;
         if (wasmOut && !wasmOut.config && config["*"])
             wasmOut.config = config["*"];
@@ -215,13 +244,13 @@ class Compile extends Phase {
     }
 
     getIncludeFlags() {
-        var sysroot = this.locateSysroot(WASIX_LIBC ?? `${WASI_SDK}/share`),
+        var sysroot = this.locateSysroot(this.isWasix() ? WASIX_LIBC : `${WASI_SDK}/share`),
             wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf(),
             flags = [`--sysroot=${sysroot}`,
                      `-I${wasiInc}`, `-I${wasiInc}/c++`,
                      '-include', `${wasiInc}/etc.h`];
 
-        if (WASIX_LIBC)
+        if (this.isWasix())
             flags.push('-D__wasix__', '-matomics', '-pthread');
 
         /*
@@ -244,17 +273,19 @@ class Compile extends Phase {
     }
 
     getLinkFlags(flags) {
-        const wasixFlags = (!WASIX_LIBC || flags['-nostdlib']) ? [] : [
+        const wasixFlags = (!this.isWasix() || flags['-nostdlib'] || flags['-r']) ? [] : [
             '-pthread', /* required for the `tls` symbols */
+            '-Wl,--export-memory', '-Wl,--import-memory',
             '-Wl,--export-dynamic',
             '-Wl,--export=__heap_base',
             '-Wl,--export=__stack_pointer',
+            '-Wl,--export=__stack_low',
             '-Wl,--export=__data_end',
             '-Wl,--export=__wasm_init_tls',
             '-Wl,--export=__wasm_signal',
             '-Wl,--export=__tls_size',
             '-Wl,--export=__tls_align',
-            '-Wl,--export=__tls_base'
+            '-Wl,--export=__tls_base',
         ];
         return [...wasixFlags,
                 ...(flags['-shared'] || flags['-nostdlib']) ? []
@@ -262,11 +293,6 @@ class Compile extends Phase {
     }
 
     postProcessArgs(wasmOut, flags, patched) {
-        // Add WASI include directories
-        patched.unshift(...this.getIncludeFlags());
-        if (!flags['-c'])
-            patched.unshift(...this.getLinkFlags(flags));
-
         // Apply config settings
         if (wasmOut.config) {
             if (wasmOut.config.noargs)
@@ -274,6 +300,11 @@ class Compile extends Phase {
             if (wasmOut.config.args)
                 patched.push(...wasmOut.config.args);
         }
+
+        // Add WASI include directories
+        patched.unshift(...this.getIncludeFlags());
+        if (!flags['-c'])
+            patched.unshift(...this.getLinkFlags(flags));
 
         return patched;
     }
@@ -327,6 +358,10 @@ class Compile extends Phase {
             outfiles.push(o);
         }
         return outfiles;
+    }
+
+    wasmOpt(wasmFn) {
+        this._exec('wasm-opt', ['--asyncify', '-g', wasmFn, '-o', wasmFn])
     }
 
     matches(x, patterns) {
@@ -397,20 +432,29 @@ class Hijack extends Phase {
         this._exec(this.which(args[0]), args.slice(1));
     }
 
-    which(filename) {
+    which(filename, searchPath = undefined) {
         if (filename.indexOf('/') >= 0) return filename;
 
-        for (let pe of process.env['PATH'].split(':')) {
+        for (let pe of this.searchPath(searchPath)) {
             var full = path.join(pe, filename);
             if (this.existsExec(full)) return full;
         }
         throw new Error(`${filename}: not found`);
     }
 
+    searchPath(sp /* string | string[]*/ = process.env['PATH']) {
+        return typeof sp === 'string' ? sp.split(':') : sp;
+    }
+
+    unhijackedPath(sp = undefined) {
+        return this.searchPath(sp)
+            .filter(pe => !pe.includes('/wasi-kit-hijack'));
+    }
+
     mkBin(basedir, script) {
         if (!fs.existsSync(basedir)) {
             fs.mkdirSync(basedir);
-            for (let tool of Object.keys(progs_native)) {
+            for (let tool of Object.keys(progs_wasi)) {
                 fs.symlinkSync(script, path.join(basedir, tool));
             }
             var inc = this.locateIncludes(script);
