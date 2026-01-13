@@ -1,11 +1,15 @@
 {
-    "*": {
-        "args": []
-    },
+    "wasix": true,
     "hello": {
+        "wasix": false,
         "native": false,
         "output": "hello.wasm",
         "args": ["-Wl,--allow-undefined"]
+    },
+    "files": {
+        "native": false,
+        "asyncify": false,
+        "output": "files.wasm"
     },
     "subproc": {
         "native": false,

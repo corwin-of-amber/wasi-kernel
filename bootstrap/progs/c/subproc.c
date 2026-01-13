@@ -7,7 +7,7 @@
 int main(int argc, char *argv[]) {
     printf("Main program started\n");
 
-    int pid = vfork();
+    int pid = fork();
     if (pid == -1) {
         printf("failed to fork - %d", errno);
         return 1;
