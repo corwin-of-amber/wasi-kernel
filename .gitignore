@@ -11,5 +11,6 @@ dist
 /lib
 /packages
 /_npmlink
+autogen
 **/build/kremlin
 **/build/worker

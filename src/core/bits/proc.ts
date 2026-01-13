@@ -1,14 +1,29 @@
+import { DynamicLoader } from "./dyld";
+
 
 class Proc {
     instance: WebAssembly.Instance
+    dyld = new DynamicLoader(this)
     debug = Trace.NOP
     trace = {
         syscalls: Trace.NOP
     }
 
-    imports() {
-        return ['__control_setjmp', '__control_setjmp_with_return', 'longjmp']
-            .map(method => [method, this[method].bind(this)]);
+    _funcTable = new WebAssembly.Table({element: 'anyfunc', initial: 1024, maximum: 1 << 16});
+
+    imports(): [string, [string, any][]][] {
+        let bind = (o: object, l: string[]) => l.map(method => [method, o[method].bind(o)] as [string, any]);
+        return [
+            ['env', bind(this, ['__control_setjmp', '__control_setjmp_with_return', 'longjmp']).concat(
+                    [['__indirect_function_table', this._funcTable]])],
+            ['wasik', bind(this.dyld, ['dlopen', 'dlsym', 'dlclose', 'dlerror_get']).concat(
+                      bind(this, ['login_get', 'progname_get', 'sorry']))]
+        ];
+    }
+
+    importsObj() {
+        return Object.fromEntries(
+            this.imports().map(([k, v]) => [k, Object.fromEntries(v)]));
     }
 
     get _mem(): WebAssembly.Memory {
@@ -20,7 +35,7 @@ class Proc {
     }
 
     get funcTable() {
-        return this.instance.exports.__indirect_function_table as WebAssembly.Table;
+        return this.instance.exports.__indirect_function_table as WebAssembly.Table ?? this._funcTable;
     }
 
     // ------------
@@ -80,6 +95,56 @@ class Proc {
         return (...args: any) => impl(block, ...args);
     }
 
+    //  ---
+
+    progname_get(pbuf: i32) {
+        return this.userPendingCStringUTF8('progname', pbuf);
+    }
+
+    login_get(pbuf: i32) {
+        return this.userPendingCStringUTF8('user', pbuf);
+    }    
+
+    // -----------
+    // Memory Part
+    // -----------
+
+    pending: (() => void)[] = []
+
+    private td = new TextDecoder();
+    private te = new TextEncoder();
+
+    userGetCString(ptr: i32) {
+        if (ptr === 0) return this.te.encode("(null)");
+        let i8a = new Uint8Array(this._mem.buffer);
+        let end = i8a.indexOf(0, ptr);
+        return i8a.slice(ptr, end);
+    }
+
+    userGetCStringUTF8(ptr: i32) {
+        return ptr === 0 ? '(null)' : 
+                this.td.decode(this.userGetCString(ptr));
+    }
+
+    userPendingBuffer(data: Uint8Array, pbuf: i32) {
+        this.pending.push(() => {
+            let buf = this.mem.getUint32(pbuf, true);
+            new Uint8Array(this._mem.buffer).set(data, buf);
+        });
+        return data.length;
+    }
+
+    userPendingCStringUTF8(s: string, pbuf: i32) {
+        return this.userPendingBuffer(this.te.encode(s + '\0'), pbuf);
+    }
+
+    /**
+     * Flushes pending operations on allocated memory.
+     * This is a nasty hack and so deserves an apology.
+     */
+    sorry() {
+        for (var f: () => void; f = this.pending.pop(); f());
+    }
 }
 
 
@@ -102,4 +167,4 @@ const Trace = {
 }
 
 
-export { Proc, Trace }
+export { Proc, TraceFunc, Trace }

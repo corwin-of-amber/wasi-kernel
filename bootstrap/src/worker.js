@@ -1,4 +1,4 @@
-console.log("I am the anti worker", globalThis)
+console.log(">> Worker is starting.", globalThis)
 
 Error.stackTraceLimit = 50;
 globalThis.onerror = console.error;
@@ -33,3 +33,13 @@ globalThis.onmessage = async ev => {
     await handleMessage(ev.data);
   }
 };
+
+
+globalThis.fs_hook = {
+    dispatch: (op) => {
+        console.warn('== fs_hook ==', op);
+        let out = new SharedArrayBuffer(8, {maxByteLength: 8e6});
+        postMessage({op, out});
+        Atomics.wait(new Int32Array(out), 0, 0);
+    }
+}

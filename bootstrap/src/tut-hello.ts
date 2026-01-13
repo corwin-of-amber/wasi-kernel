@@ -25,14 +25,12 @@ async function main() {
 
     let rt = new Runtime();
 
-    console.log(initHook);
-
+    /*
     const STUBS = [
         'system', 'clock', 'getpid', 'getppid', 'geteuid', 'getuid', 'getegid', 'getgid',
         'dlopen', 'dlclose', 'dlsym'
     ]
 
-    /*
     global.init_hook = function (imp, m: WebAssembly.Module) {
         console.warn('hook', this, imp, WebAssembly.Module.imports(m));
         //window.imp = imp;
@@ -50,15 +48,18 @@ async function main() {
     }
     */
 
-    const busyboxWasm = '/Users/corwin/var/ext/wasm/ports/busybox/busybox.wasm';
+    const busyboxWasm = '/Users/corwin/var/ext/wasm/ports/busybox/busybox.wasm',
+          ocamlWasm = '/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/runtime/ocamlrun.wasm';
 
     Object.assign(window, {rt, proc});
 
     var term = new MiniTerm(document.querySelector('#term'));
 
 
+    /*
     let vfs = new wasmer.Directory();
     await vfs.createDir('bin');
+    await vfs.writeFile('bin/busybox', new Uint8Array(fs.readFileSync(busyboxWasm)));
     await vfs.writeFile('bin/ls', new Uint8Array(fs.readFileSync(busyboxWasm)));
     await vfs.writeFile('bin/touch', new Uint8Array([]));
     await vfs.writeFile('bin/hello', new Uint8Array(fs.readFileSync('hello.wasm')));
@@ -76,37 +77,66 @@ async function main() {
     await vfs.writeFile('share/a.ml', fs.readFileSync('a.ml', 'utf-8'));
 
     //await pm.installArchive('/local/lib/ocaml', new Resource('/ocaml-base.tar'));
+*/
 
-    Object.assign(window, {vfs});
+    let binfile = (fn: string) => new Uint8Array(fs.readFileSync(fn)),
+        textfile = (fn: string) => fs.readFileSync(fn, 'utf-8')
 
-    class DirectoryVolumeAdapter implements PackageManager.Volume {
-        root: wasmer.Directory
-        constructor(root: wasmer.Directory) {
-            this.root = root;
-        }
-        async mkdir(filename: string, options: { recursive: boolean; }): Promise<void> {
-            try {
-            await this.root.createDir(filename);
-            }catch {}
-        }
-        writeFile(filename: string, content: string | Uint8Array): Promise<void> {
-            return this.root.writeFile(filename, content);
+    let vfs = new wasmer.Directory({
+        'bin/busybox': binfile(busyboxWasm),
+        'bin/ls': binfile(busyboxWasm),
+        'bin/cat': binfile(busyboxWasm),
+        'share/a.ml': textfile('a.ml'),
+        'bin/ocamlrun': binfile(ocamlWasm),
+
+        'lib/dllcamlstr.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/str/dllcamlstr.wasm'),
+        'lib/dllunix.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/unix/dllunix.wasm'),
+        'lib/dllthreads.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/systhreads/dllthreads.wasm'),
+        'lib/dllnums.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/libs/num/src/dllnums.wasm'),
+        'lib/nums.cma': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/libs/num/src/nums.cma'),
+    })
+
+    let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory()),
+        lazy = vfs_ocaml.lazyInstall('/', new Resource('/ocaml-base.tar'));
+
+    await vfs.createDir('/local');
+    await vfs.createDir('/local/lib');
+    vfs.mountDir('/local/lib/ocaml', vfs_ocaml.root);
+
+
+    let fs_hook = {
+        dispatch: () => console.warn(' 0000 '),
+        intercept: async m => {
+            console.log(' 0001 ', m);
+            if (m.op !== undefined) {
+                await lazy.get(m.op)();
+                
+
+                if (m.out)
+                    Atomics.notify(new Int32Array(m.out), 0);
+            }
         }
     }
 
-    let pm = new PackageManager(new DirectoryVolumeAdapter(vfs));
-    Object.assign(window, {pm});
+    Object.assign(window, {vfs, vfs_ocaml, fs_hook});
+
+
+    const RUN =
+        ['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
+        //['sh'];
+        //['busybox', 'ls'];
+        //['jump']  ['subproc']   ['threads']   ['files']
+
+    const WASMS = {
+        'busybox': busyboxWasm, 'sh': busyboxWasm,
+        'ocamlrun': ocamlWasm
+    };
 
     const prog = {
-        wasmFn: 'hello.wasm',
-        //'jump.wasm',
-        //'subproc.wasm',
-        //'threads.wasm',
-        //busyboxWasm,
-        //'/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/runtime/ocamlrun.wasm',
+        wasmFn: WASMS[RUN[0]] ?? `${RUN[0]}.wasm`,
         runOpts: {
-            program: 'busybox',
-            args: ['sh'],// '/usr/share/a.ml'],
+            program: RUN[0],
+            args: RUN.slice(1),
             mount: {'/usr': vfs},
             cwd: '/usr'
         }
@@ -204,7 +234,7 @@ class InstanceInterface {
 
     constructor(instance: wasmer.Instance) {
         this.instance = instance;
-        this.writer = this.instance.stdin.getWriter()
+        this.writer = this.instance.stdin.getWriter();
     }
 
     write(buf: string | Uint8Array) {
@@ -260,3 +290,33 @@ class MiniTerm {
 }
 
 
+
+class DirectoryVolumeAdapter implements PackageManager.Volume {
+    root: wasmer.Directory
+    constructor(root: wasmer.Directory) {
+        this.root = root;
+    }
+
+    mkdir(pathname: string, options: { recursive: boolean; }): Promise<void> {
+        return options.recursive ? this.root.createDirs(pathname)
+                                 : this.root.createDir(pathname);
+    }
+
+    writeFile(filename: string, content: string | Uint8Array): Promise<void> {
+        return this.root.writeFileRO(filename, content);
+    }
+
+    lazyInstall(path: string = "/", resource: Resource) {
+        let hid = 9;
+    
+        let hooks = new wasmer.Hooks;
+        hooks.populate = hid;
+        this.root.setHooks(hooks);
+
+        return new Map([
+            [hid, () =>
+                new PackageManager(this).installArchive(path, resource)
+            ]
+        ]);
+    }
+}
