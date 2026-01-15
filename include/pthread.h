@@ -265,14 +265,17 @@ __REDIR(pthread_timedjoin_np, __pthread_timedjoin_np_time64);
 #define restrict
 #endif
 
+__attribute__((unused))
 static int pthread_mutex_init(pthread_mutex_t *restrict m,
                        const pthread_mutexattr_t *restrict a) {
   *m = (pthread_mutex_t){0};
   return 0;
 }
 
+__attribute__((unused))
 static int pthread_mutex_destroy(pthread_mutex_t *mutex) { return 0; }
 
+__attribute__((unused))
 static int pthread_mutex_trylock(pthread_mutex_t *m) {
   if (m->_m_lock == EBUSY) {
     return EBUSY;
@@ -282,8 +285,10 @@ static int pthread_mutex_trylock(pthread_mutex_t *m) {
   }
 }
 
+__attribute__((unused))
 static int pthread_mutex_lock(pthread_mutex_t *m) { return pthread_mutex_trylock(m); }
 
+__attribute__((unused))
 static int pthread_mutex_unlock(pthread_mutex_t *m) {
   if (m->_m_lock == EBUSY) {
     m->_m_lock = 0;
@@ -293,23 +298,29 @@ static int pthread_mutex_unlock(pthread_mutex_t *m) {
   }
 }
 
+__attribute__((unused))
 static int pthread_cond_init(pthread_cond_t *restrict c,
                       const pthread_condattr_t *restrict a) {
   return 0;
 }
 
+__attribute__((unused))
 static int pthread_cond_destroy(pthread_cond_t *c) { return 0; }
 
+__attribute__((unused))
 static int pthread_cond_wait(pthread_cond_t *restrict c, pthread_mutex_t *restrict m) {
   return EINVAL;
 }
 
+__attribute__((unused))
 static int pthread_cond_timedwait(pthread_cond_t *restrict c, pthread_mutex_t *restrict m, const struct timespec *restrict t) {
   return EINVAL;
 }
 
+__attribute__((unused))
 static int pthread_cond_broadcast(pthread_cond_t *c) { return 0; }
 
+__attribute__((unused))
 static int pthread_cond_signal(pthread_cond_t *c) { return 0; }
 
 #endif
