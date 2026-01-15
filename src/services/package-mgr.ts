@@ -6,20 +6,18 @@
  */
 
 import { EventEmitter } from 'events';
-//import { Volume } from 'memfs/lib/volume';
 import path from 'path';
-//import JSZip from 'jszip';
-//import { DEFLATE } from 'jszip/lib/compressions'
-//import { inflateRaw } from 'pako';
+
+import { unzipSync } from 'fflate';
 import tar from 'tar-stream';
 import concat from 'concat-stream';
-//import { SharedVolume } from 'wasi-kernel';
 
 
 namespace PackageManager {
     export interface Volume {
-        mkdir(filename: string, options: {recursive: boolean}): Promise<void>;
-        writeFile(filename: string, content: string | Uint8Array): Promise<void>;
+        mkdir(filename: string, options: {recursive: boolean}): Promise<void>
+        writeFile(filename: string, content: string | Uint8Array): Promise<void>
+        link(filename: string, target: string): Promise<void>
     }
 }
 
@@ -44,47 +42,23 @@ class PackageManager extends EventEmitter {
 
     async _installFile(filename: string, content: string | Uint8Array) {
         await this.volume.mkdir(path.dirname(filename), {recursive: true});
-        //if (this.volume instanceof SharedVolume && content instanceof Uint8Array && content.length > (1 << 14))
-        //    return this.volume.writeBlob(filename, content);
-        //else
         return this.volume.writeFile(filename, content);
     }
 
-    installSymlink(filename: string, target: string) {
-        /*if (this.volume instanceof SharedVolume) {
-            this.volume.createSymlink(target, filename);
-        }
-        else*/
-            throw new Error(`symlinks not supported in this medium (installing '${filename}')`);
+    async installSymlink(filename: string, target: string) {
+        await this.volume.mkdir(path.dirname(filename), {recursive: true});
+        return this.volume.link(filename, target);
     }
 
-    /*
     async installZip(rootdir: string, content: Resource | Blob, progress: (p: DownloadProgress) => void = () => {}) {
-        var payload = (content instanceof Resource) ? content.blob(progress) : content;
-        var z = await JSZip.loadAsync(payload),
-            waitFor = [];
-        z.forEach((filename: string, entry: any /*ZipEntry*) => {
-            let fullpath = path.join(rootdir, filename);
-            waitFor.push((async () => {
-                if (this.isSymlink(entry.unixPermissions)) {
-                    this.installSymlink(fullpath, await entry.async('text'));
-                }
-                else if (entry.dir)
-                    this.volume.mkdirSync(fullpath, {recursive: true});
-                else {
-                    let ui8a = this.opts.fastInflate && entry._data.compression == DEFLATE
-                         ? this._inflateFast(entry)
-                         : await entry.async('uint8array');
-                    await this._installFile(fullpath, ui8a)
-                }
-            })());
-        });
-        await Promise.all(waitFor);
-    }
+        var payload = (content instanceof Resource) ? await content.blob(progress) : content,
+            ui8a = new Uint8Array(await payload.arrayBuffer());  /** @todo streaming? */
 
-    _inflateFast(entry: any) {
-        return inflateRaw(entry._data.compressedContent);
-    }*/
+        for (let [filename, content] of Object.entries(unzipSync(ui8a))) {
+            let fullpath = path.join(rootdir, filename);
+            await this._installFile(fullpath, content);
+        }
+    }
 
     async installTar(rootdir: string, content: Resource | Blob, progress: (p: DownloadProgress) => void = () => {}) {
         var payload = (content instanceof Resource) ? await content.blob(progress) : content,
@@ -96,7 +70,7 @@ class PackageManager extends EventEmitter {
 
             switch (header.type) {
             case 'symlink':
-                this.installSymlink(fullpath, header.linkname); break;
+                pending.push(this.installSymlink(fullpath, header.linkname)); break;
             case 'file':
                 stream.pipe(concat(ui8a => {
                     pending.push(this.installFile(fullpath, ui8a));
@@ -125,8 +99,8 @@ class PackageManager extends EventEmitter {
             for (let overlay of content)
                 await this.installArchive(rootdir, overlay, progress);
         }
-        //else if (content.uri.endsWith('.zip'))
-        //    return this.installZip(rootdir, content, progress);
+        else if (content.uri.endsWith('.zip') || content.contentType === 'application/zip')
+            return this.installZip(rootdir, content, progress);
         else
             return this.installTar(rootdir, content, progress);
     }
@@ -174,9 +148,11 @@ function isMultiple(x: any): x is Resource[] {
 
 class Resource {
     uri: string
+    contentType: string
 
-    constructor(uri: string) {
+    constructor(uri: string, contentType = 'application/octet-stream') {
         this.uri = uri;
+        this.contentType = contentType;
     }
 
     async arrayBuffer() {
