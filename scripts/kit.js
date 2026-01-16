@@ -55,6 +55,7 @@ function main() {
 function patchOutput(filename, config={}) {
     let out = patchOutput0(filename, config);
     if (out?.fn) out.fn = patchDune(out.fn, config);
+    if (out) out.nativefn ??= filename;
     return out;
 }
 
@@ -72,7 +73,7 @@ function patchOutput0(filename, config={}) {
         return {type: 'lib-archive', fn: filename.replace(/[.]a$/, '.wa')}
     }
     else if (filename.match(/[.](so|dylib)$/)) {
-        /** @todo ?? */
+        return {type: 'lib-dynamic', nativefn: filename}
     }
     else if (filename.match(/[.]s$/)) {
         return {type: 'skip'};
@@ -101,7 +102,7 @@ function patchDune(filename, config={}) {
     if (config.basedir) {
         let rel = path.relative(config.basedir, filename);
         if (rel.startsWith('_build/'))
-            return path.join(config.basedir, rel.replace(/^_build/, '_wuild'));
+            return path.join(config.basedir, rel.replace(/^_build/, '_build/wasm'));
     }
     return filename;
 }
@@ -146,7 +147,7 @@ class Phase {
     
     _exec(prog, args, envvars={}) {
         if (WASI_KIT_FLAGS.includes('verbose')) {
-            console.log('[wasi-kit]  ', prog, args.join(' '));
+            this.log(`[wasi-kit]   ${prog} ${args.join(' ')}`);
         }
         return child_process.execFileSync(prog, args, {
             stdio: 'inherit',
@@ -192,11 +193,16 @@ class Phase {
         }
     }
 
+    log(s) {
+        process.stderr.write(`${s}\n`);
+    }
 }
 
 class Compile extends Phase {
 
-    FLAGS_BOOL = ['-c', '-r', '-shared', '-nostdlib', '-pthread']
+    FLAGS_BOOL = ['-c', '-r', '-E', '-P',
+                  '-shared', '-nostdlib', '-pthread']
+    FLAGS_MONADIC = ['-o', '-undefined']
 
     run(prog, args) {
         this.parseArgs(args);
@@ -223,9 +229,9 @@ class Compile extends Phase {
             if (this.FLAGS_BOOL.includes(arg)) {
                 flags[arg] = true;
             }
-            else if (arg == '-o') {
+            else if (this.FLAGS_MONADIC.includes(arg)) {
                 i++;
-                flags['-o'] = args[i];
+                flags[arg] = args[i];
             }
         }
         this.flags = flags;
@@ -234,6 +240,8 @@ class Compile extends Phase {
     patchArgs(args) {
         var config = this.getConfig(), flags = this.flags;
 
+        if (flags['-E'] || flags['-P']) return;  /* preprocessing flags */
+
         var patched = [], wasmOut, wasmIn = [];
         for (let i = 0; i < args.length; i++) {
             let arg = args[i];
@@ -241,7 +249,7 @@ class Compile extends Phase {
             if (arg == '-o') {
                 i++;
                 wasmOut = patchOutput(args[i], config);
-                patched.push(wasmOut ? wasmOut.fn : '/dev/null');
+                patched.push(wasmOut?.fn ?? '/dev/null');
             }
         }
         // Handle corner case when default output is used (.c -> .o)
@@ -251,14 +259,18 @@ class Compile extends Phase {
             }
         }
 
-        if (wasmOut && config[wasmOut.fn] === 'skip' || wasmIn.find(inp => inp.type === 'skip'))
-            wasmOut = undefined;
-        if (wasmOut && !wasmOut.config && config["*"])
-            wasmOut.config = config["*"];
+        if (!wasmOut || config[wasmOut.fn] === 'skip' || wasmIn.find(inp => inp.type === 'skip'))
+            wasmOut = {type: 'skip'};
+
+        wasmOut.config ??= config["*"];
+
+        if (wasmOut.config?.preset) {
+            Object.assign(wasmOut.config, config.presets?.[wasmOut.config.preset] ?? {});
+        }
 
         this.report(wasmOut, wasmIn, flags);
 
-        if (wasmOut) {
+        if (wasmOut.fn) {
             this.mkdirOf(wasmOut.fn); // wasm out may not be in the same directory as the native out
             return this.postProcessArgs(wasmOut, flags, patched);
         }
@@ -302,7 +314,7 @@ class Compile extends Phase {
     getLinkFlags(flags) {
         const wasixFlags = (!this.isWasix() || flags['-nostdlib'] || flags['-r']) ? [] : [
             '-pthread', /* required for the `tls` symbols */
-            '-Wl,--export-memory', '-Wl,--import-memory',
+            '-Wl,--import-memory',
             '-Wl,--export-dynamic',
             '-Wl,--export=__heap_base',
             '-Wl,--export=__stack_pointer',
@@ -313,6 +325,7 @@ class Compile extends Phase {
             '-Wl,--export=__tls_size',
             '-Wl,--export=__tls_align',
             '-Wl,--export=__tls_base',
+            ...(flags['-shared'] ? [] : ['-Wl,--export-memory'])
         ];
         return [...wasixFlags,
                 ...(flags['-shared'] || flags['-nostdlib']) ? []
@@ -328,8 +341,9 @@ class Compile extends Phase {
                 patched.push(...wasmOut.config.args);
         }
 
-        // Add WASI include directories
-        patched.unshift(...this.getIncludeFlags());
+        // Add WASI directories and flags
+        if (!flags['-shared'])  /* wasix-libc seems to conflict with `-shared`. this might become an issue later. */
+            patched.unshift(...this.getIncludeFlags());
         if (!flags['-c'])
             patched.unshift(...this.getLinkFlags(flags));
 
@@ -344,18 +358,18 @@ class Compile extends Phase {
     report(wasmOut, wasmIn, flags) {
         if (WASI_KIT_FLAGS.includes('silent')) return;
 
-        if (wasmOut) {
-            console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
+        if (wasmOut?.fn) {
+            this.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
         }
         else {
-            if (!WASI_KIT_FLAGS.includes('q'))
-                console.log(`  (wasm skipped)`);
+            if (!WASI_KIT_FLAGS.includes('q') && wasmOut?.nativefn)
+                this.log(`  (${wasmOut.nativefn} [skipped])`);
             return; 
         }
 
         if (wasmIn && !flags['-c']) {
             for (let inp of wasmIn)
-                console.log(`   - ${inp.fn} [${inp.type}]`);
+                this.log(`   - ${inp.fn} [${inp.type}]`);
         }
     }
 
@@ -437,20 +451,20 @@ class Archive extends Phase {
         patched.push(args[0]);
         // second arg is the output
         wasmOut = patchOutput(args[1], config);
-        if (!wasmOut) { console.log(`  (wasm skipped)`); return; }
+        if (!wasmOut) { this.log(`  (wasm skipped)`); return; }
         patched.push(wasmOut.fn);
-        console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
+        this.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
         // rest are inputs
         for (let i = 2; i < args.length; i++) {
             var inp = patchOutput(args[i], config);
             if (inp && fs.existsSync(inp.fn)) {
-                console.log(`   - ${inp.fn} [${inp.type}]`);
+                this.log(`   - ${inp.fn} [${inp.type}]`);
                 wasmIn.push(inp);
                 patched.push(inp.fn);
             }
         }
         if (wasmIn.length == 0) {
-            console.log(`   (no inputs - skipped)`);
+            this.log(`   (no inputs - skipped)`);
             return
         }
         return patched;
