@@ -53,8 +53,14 @@ function main() {
 
 
 function patchOutput(filename, config={}) {
-    if (config[filename]) {
-        var base = patchOutput(filename, {}) || {};
+    let out = patchOutput0(filename, config);
+    if (out?.fn) out.fn = patchDune(out.fn, config);
+    return out;
+}
+
+function patchOutput0(filename, config={}) {
+        if (config[filename]) {
+        var base = patchOutput0(filename, {...config, [filename]: undefined}) || {};
         return {type: config[filename].type || base.type || 'bin',
                 fn: config[filename].output || base.fn,
                 config: config[filename]};
@@ -64,6 +70,9 @@ function patchOutput(filename, config={}) {
     }
     else if (filename.match(/[.]a$/)) {
         return {type: 'lib-archive', fn: filename.replace(/[.]a$/, '.wa')}
+    }
+    else if (filename.match(/[.](so|dylib)$/)) {
+        /** @todo ?? */
     }
     else if (filename.match(/[.]s$/)) {
         return {type: 'skip'};
@@ -81,6 +90,20 @@ function patchArgument(arg, config={}, wasmIn=undefined) {
         }
     }
     return arg;
+}
+
+/**
+ * This is a bit of an ad-hoc attempt to circumvent Dune's total control
+ * over managing the `_build` directory, resulting in `.wa` and `.wasm`
+ * file being proactively removed.
+ */
+function patchDune(filename, config={}) {
+    if (config.basedir) {
+        let rel = path.relative(config.basedir, filename);
+        if (rel.startsWith('_build/'))
+            return path.join(config.basedir, rel.replace(/^_build/, '_wuild'));
+    }
+    return filename;
 }
 
 
@@ -133,7 +156,10 @@ class Phase {
 
     getConfig() {
         var fn = this.closest('wasi-kit.json');
-        return fn ? JSON.parse(fs.readFileSync(fn, 'utf-8')) : {};
+        return fn ? {
+            basedir: path.dirname(fn),
+            ...JSON.parse(fs.readFileSync(fn, 'utf-8'))
+        } : {};
     }
 
     getConfigFor(target) {
@@ -233,6 +259,7 @@ class Compile extends Phase {
         this.report(wasmOut, wasmIn, flags);
 
         if (wasmOut) {
+            this.mkdirOf(wasmOut.fn); // wasm out may not be in the same directory as the native out
             return this.postProcessArgs(wasmOut, flags, patched);
         }
     }
@@ -307,6 +334,11 @@ class Compile extends Phase {
             patched.unshift(...this.getLinkFlags(flags));
 
         return patched;
+    }
+
+    mkdirOf(filename) {
+        if (filename)
+            fs.mkdirSync(path.dirname(filename), {recursive: true});
     }
 
     report(wasmOut, wasmIn, flags) {
@@ -399,17 +431,18 @@ class FileOp extends Phase {
 class Archive extends Phase {
     
     patchArgs(args) {
+        let config = this.getConfig();
         var patched = [], wasmOut, wasmIn = [];
         // first arg is the action
         patched.push(args[0]);
         // second arg is the output
-        wasmOut = patchOutput(args[1]);
+        wasmOut = patchOutput(args[1], config);
         if (!wasmOut) { console.log(`  (wasm skipped)`); return; }
         patched.push(wasmOut.fn);
         console.log(`  (${wasmOut.fn} [${wasmOut.type}])`);
         // rest are inputs
         for (let i = 2; i < args.length; i++) {
-            var inp = patchOutput(args[i]);
+            var inp = patchOutput(args[i], config);
             if (inp && fs.existsSync(inp.fn)) {
                 console.log(`   - ${inp.fn} [${inp.type}]`);
                 wasmIn.push(inp);
