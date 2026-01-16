@@ -8,6 +8,7 @@ class DynamicLoader {
     trace: TraceFunc = Trace.NOP
 
     dylibTable = new DynamicLibrary.Table
+    extern: DynamicLibrary.Relocations
 
     constructor(public proc: Proc) { }
 
@@ -41,7 +42,7 @@ class DynamicLoader {
         var path_str = this.proc.userGetCStringUTF8(path);
         this.trace(`dlopen("${path_str}", ${flags})`);
         try {
-            var def = this.loadSync(path_str);
+            var def = this.loadSync(path_str, this.extern);
             if (def) {
                 var instance = def.instantiate(this),
                     handle = this.dylibTable.ref.size + 1;

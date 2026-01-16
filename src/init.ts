@@ -24,6 +24,9 @@ function initHook(imp: {env?: object, wasik?: object}, m: WebAssembly.Module) {
     proc.trace.syscalls = console.warn;
     //proc.dyld.trace = console.warn;
 
+    /** @todo this is for Rocq actually :) ^- */
+    proc.dyld.extern = {js: {interrupt_pending: () => 0}};
+
     globalThis.proc = proc; // dev mode
     return proc;
 }

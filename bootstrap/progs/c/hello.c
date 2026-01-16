@@ -50,8 +50,10 @@ int main(int argc, char *argv[]) {
         else { buf[rd] = 0; printf("%zu %s\n", rd, buf); }
     }
 
+#ifndef BARE
     printf("This is a cliche  (%d)\n", 
         does_not_exist());
+#endif
 
     return 0;
 }
