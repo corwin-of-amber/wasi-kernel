@@ -18,13 +18,17 @@ class DynamicLoader {
         this.dylibTable.def.set(path, new DynamicLibrary.Def(wasm, reloc, {path, uri}));
     }
 
-    loadSync(path: string) {
-        //let def = this.dylibTable.def.get(path);
-        //if (def) return def;
-        let fs = globalThis.fs_hook.fs;
-        console.warn(fs);
-        let wasm = new WebAssembly.Module(fs.readFileSync(`/usr/lib/${path}`));
-        return new DynamicLibrary.Def(wasm, {}, {path, uri: ''});
+    loadSync(path: string, reloc?: DynamicLibrary.Relocations) {
+        let def = this.dylibTable.def.get(path);
+        if (def) return def;
+
+        let fs = globalThis.fs_hook.fs,
+            fn = `/usr/lib/${path}`,
+            wasm = new WebAssembly.Module(fs.readFileSync(fn));
+            def = new DynamicLibrary.Def(wasm, reloc, {path, uri: `wasi://${fn}`});
+
+        this.dylibTable.def.set(path, def);
+        return def;
     }
 
     // -----------
@@ -37,7 +41,7 @@ class DynamicLoader {
         var path_str = this.proc.userGetCStringUTF8(path);
         this.trace(`dlopen("${path_str}", ${flags})`);
         try {
-            var def = this.loadSync(path_str); //this.dylibTable.def.get(path_str);
+            var def = this.loadSync(path_str);
             if (def) {
                 var instance = def.instantiate(this),
                     handle = this.dylibTable.ref.size + 1;
@@ -46,7 +50,7 @@ class DynamicLoader {
             }
             else this.lastError = 'not found';
         }
-        catch (e) { console.error(e); this.lastError = e.toString(); }
+        catch (e) { console.error(e); this.lastError = `${e}`; }
         return 0;
     }
 

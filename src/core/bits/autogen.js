@@ -13,7 +13,7 @@ class GlueCompiler {
 
     createAll(maxArity) {
         return Array.from({length: maxArity},
-            i => this.create(i));
+            (_, i) => this.create(i));
     }
 
     /**
