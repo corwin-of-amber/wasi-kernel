@@ -3,9 +3,9 @@ import * as wasmer from "@wasmer/sdk";
 import { init, Runtime, Wasmer } from "@wasmer/sdk";
 
 import { Proc } from '../../src/core/bits/proc';
-import { PackageManager, Resource } from '../../src/services/package-mgr';
+import { PackageManager, Resource, DirectoryVolumeAdapter } from '../../src/services/package-mgr';
 
-import { initHook } from '../../src/init.ts';
+import { FsHookMaster, initHook } from '../../src/init.ts';
 
 //let window = {};
 
@@ -25,62 +25,18 @@ async function main() {
 
     let rt = new Runtime();
 
-    /*
-    const STUBS = [
-        'system', 'clock', 'getpid', 'getppid', 'geteuid', 'getuid', 'getegid', 'getgid',
-        'dlopen', 'dlclose', 'dlsym'
-    ]
-
-    global.init_hook = function (imp, m: WebAssembly.Module) {
-        console.warn('hook', this, imp, WebAssembly.Module.imports(m));
-        //window.imp = imp;
-        imp.env = Object.fromEntries(WebAssembly.Module.imports(m)
-            .flatMap(e => e.module === 'env' ? [[e.name, () => 0]] : []));
-        imp.env['__control_setjmp'] = proc.__control_setjmp.bind(proc);
-        imp.env['longjmp'] = proc.longjmp.bind(proc);
-        //for (let s of STUBS)
-        //    imp.env[s] = () => 0;
-
-        imp.wasik_ext = {'sorry': () => 0, 'dlerror_get': () => 0};
-        //Object.assign(imp, this);
-        //Object.assign(imp.env, externals.env);// = {__indirect_function_table: proc.funcTable};
-        return proc;
-    }
-    */
-
-    const busyboxWasm = '/Users/corwin/var/ext/wasm/ports/busybox/busybox.wasm',
-          ocamlWasm = '/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/runtime/ocamlrun.wasm';
+    const busyboxWasm = '~/var/ext/wasm/ports/busybox/busybox.wasm',
+          ocamlWasm = '~/var/ext/wasm/ports/ocaml/ocaml-4.14/runtime/ocamlrun.wasm';
 
     Object.assign(window, {rt, proc});
 
     var term = new MiniTerm(document.querySelector('#term'));
 
+    let expandUser = (fn: string) => fn.replace(/^~/, process.env['HOME']);
 
-    /*
-    let vfs = new wasmer.Directory();
-    await vfs.createDir('bin');
-    await vfs.writeFile('bin/busybox', new Uint8Array(fs.readFileSync(busyboxWasm)));
-    await vfs.writeFile('bin/ls', new Uint8Array(fs.readFileSync(busyboxWasm)));
-    await vfs.writeFile('bin/touch', new Uint8Array([]));
-    await vfs.writeFile('bin/hello', new Uint8Array(fs.readFileSync('hello.wasm')));
-    await vfs.createDir('lib');
-    await vfs.writeFile('lib/icoq.bc', new Uint8Array([]));
-    await vfs.writeFile('lib/a.bc', new Uint8Array(fs.readFileSync('dist/bin/a.bc')));
-    await vfs.writeFile('bin/ocaml', new Uint8Array(fs.readFileSync('dist/bin/ocaml')));
-    await vfs.writeFile('bin/ocamlc', new Uint8Array(fs.readFileSync('dist/bin/ocamlc')));
-
-    await vfs.createDir('local');
-    await vfs.createDir('local/lib');
-    await vfs.createDir('local/lib/ocaml');
-
-    await vfs.createDir('share');
-    await vfs.writeFile('share/a.ml', fs.readFileSync('a.ml', 'utf-8'));
-
-    //await pm.installArchive('/local/lib/ocaml', new Resource('/ocaml-base.tar'));
-*/
-
-    let binfile = (fn: string) => new Uint8Array(fs.readFileSync(fn)),
-        textfile = (fn: string) => fs.readFileSync(fn, 'utf-8')
+    let binfile = (fn: string) => new Uint8Array(fs.readFileSync(expandUser(fn))),
+        textfile = (fn: string) => fs.readFileSync(expandUser(fn), 'utf-8'),
+        rcsfile = (fn: string, ct?: string) => new Resource(`file://${expandUser(fn)}`, ct);
 
     let vfs = new wasmer.Directory({
         'bin/busybox': binfile(busyboxWasm),
@@ -89,40 +45,47 @@ async function main() {
         'share/a.ml': textfile('a.ml'),
         'bin/ocamlrun': binfile(ocamlWasm),
 
-        'lib/dllcamlstr.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/str/dllcamlstr.wasm'),
-        'lib/dllunix.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/unix/dllunix.wasm'),
-        'lib/dllthreads.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/systhreads/dllthreads.wasm'),
-        'lib/dllnums.so': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/libs/num/src/dllnums.wasm'),
-        'lib/nums.cma': binfile('/Users/corwin/var/ext/wasm/ports/ocaml/libs/num/src/nums.cma'),
+        'lib/dllcamlstr.so': binfile('~/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/str/dllcamlstr.wasm'),
+        'lib/dllunix.so': binfile('~/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/unix/dllunix.wasm'),
+        'lib/dllthreads.so': binfile('~/var/ext/wasm/ports/ocaml/ocaml-4.14/otherlibs/systhreads/dllthreads.wasm'),
+        'lib/dllnums.so': binfile('~/var/ext/wasm/ports/ocaml/libs/num/src/dllnums.wasm'),
+        'lib/nums.cma': binfile('~/var/ext/wasm/ports/ocaml/libs/num/src/nums.cma'),
+        'lib/dllzarith.so': binfile('~/var/ext/wasm/ports/ocaml/libs/zarith/dllzarith.wasm'),
+        //'lib/nums.cma': binfile('~/var/ext/wasm/ports/ocaml/libs/num/src/nums.cma'),
+        'lib/dllbase_stubs.so': binfile('~/var/ext/wasm/ports/ocaml/libs/janestreet/base/lib/dllbase_stubs.wasm'),
+        'lib/dllbase_internalhash_types_stubs.so': binfile('~/var/ext/wasm/ports/ocaml/libs/janestreet/base/lib/dllbase_internalhash_types_stubs.wasm'),
+        'lib/base.cma': binfile('~/var/ext/wasm/ports/ocaml/libs/janestreet/base/lib/base.cma'),
+        'lib/base_internalhash_types.cma': binfile('~/var/ext/wasm/ports/ocaml/libs/janestreet/base/lib/base_internalhash_types.cma'),
+        'lib/shadow_stdlib.cma': binfile('~/var/ext/wasm/ports/ocaml/libs/janestreet/base/lib/shadow_stdlib.cma'),
+
+        'lib/rocq.bc': binfile('~/var/workspace/jscoq/_build/jscoq+64bit/_vendor+v9.0+64bit/coq/topbin/rocqworker.bc'),
+        'lib/dlllib_stubs.so': binfile('~/var/workspace/jscoq/_build/jscoq+64bit/backend/wasm/dlllib_stubs.wasm'),
+        'lib/dllcoqrun_stubs.so': binfile('~/var/workspace/jscoq/_build/jscoq+64bit/backend/wasm/dllcoqrun_stubs.wasm'),
+
+        'lib/findlib.conf': 'path="/usr/lib"',
+        'lib/rocq-runtime/META': textfile('~/var/workspace/jscoq/_build/install/jscoq+64bit/lib/rocq-runtime/META'),
     })
 
+    await new PackageManager(new DirectoryVolumeAdapter(vfs))
+        .installArchive('lib/rocq-runtime', rcsfile('~/var/workspace/jscoq/coq-pkgs/init.coq-pkg', 'application/zip'));
+    
     let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory()),
-        lazy = vfs_ocaml.lazyInstall('/', new Resource('/ocaml-base.tar'));
+        lazy = vfs_ocaml.lazyInstall('/', rcsfile('~/var/ext/wasm/ports/ocaml/ocaml-4.14/base.tar'));
 
     await vfs.createDir('/local');
     await vfs.createDir('/local/lib');
     vfs.mountDir('/local/lib/ocaml', vfs_ocaml.root);
 
+    let home = new wasmer.Directory();
 
-    let fs_hook = {
-        dispatch: () => console.warn(' 0000 '),
-        intercept: async m => {
-            console.log(' 0001 ', m);
-            if (m.op !== undefined) {
-                await lazy.get(m.op)();
-                
-
-                if (m.out)
-                    Atomics.notify(new Int32Array(m.out), 0);
-            }
-        }
-    }
+    let fs_hook = new FsHookMaster().with(lazy);
 
     Object.assign(window, {vfs, vfs_ocaml, fs_hook});
 
 
     const RUN =
         ['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
+        //['ocamlrun', '/usr/lib/rocq.bc', '--kind=repl', '-boot', '-R', '/usr/lib/rocq-runtime', ''];
         //['sh'];
         //['busybox', 'ls'];
         //['jump']  ['subproc']   ['threads']   ['files']
@@ -133,12 +96,13 @@ async function main() {
     };
 
     const prog = {
-        wasmFn: WASMS[RUN[0]] ?? `${RUN[0]}.wasm`,
+        wasmFn: expandUser(WASMS[RUN[0]] ?? `${RUN[0]}.wasm`),
         runOpts: {
             program: RUN[0],
             args: RUN.slice(1),
-            mount: {'/usr': vfs},
-            cwd: '/usr'
+            mount: {'/usr': vfs, '/home': home},
+            cwd: '/usr',
+            env: {'OCAMLFIND_CONF': '/usr/lib/findlib.conf', 'HOME': '/home'}
         }
     };
 
@@ -248,75 +212,42 @@ class InstanceInterface {
 class MiniTerm {
     text = ''
     el: HTMLDivElement
+    td = new TextDecoder
 
     constructor(el: HTMLDivElement) { this.el = el; }
 
-    write(s: string) {
+    write(s: string | Uint8Array) {
+        if (s instanceof Uint8Array) s = this.td.decode(s);
         this.text += s;
         if (this.el) this.el.textContent = this.text;
     }
 
     async getText(s: ReadableStream) {
         const chunks = [], r = s.getReader();
-        let td = new TextDecoder(), text = [];
         while (true) {
             let chunk = await r.read();
             if (chunk.done) break;
             else chunks.push(chunk.value);
 
-            this.write(td.decode(chunk.value));
+            this.write(chunk.value);
         }
-        return chunks.map(x => td.decode(x));
+        return chunks;
     }
 
     /** this is incomplete */
     async getTexts(s: ReadableStream[]) {
-        const chunks = [], r = s.map(s => s.getReader());
+        const r = s.map(s => s.getReader());
         let p = r.map(async (r, i) => [await r.read(), i] as [ReadableStreamReadResult<any>, number]);
         let td = new TextDecoder(), text = [];
         while (true) {
             let [chunk, idx] = await Promise.any(p);
             console.log(td.decode(chunk.value), idx);
 
-            this.text += td.decode(chunk.value);
-            if (this.el) this.el.textContent = this.text;
+            this.write(td.decode(chunk.value));
 
             p[idx] = (async (r, i) => [await r.read(), i] as [ReadableStreamReadResult<any>, number])(r[idx], idx);
         }
-
-        return chunks;
     }
 
 }
 
-
-
-class DirectoryVolumeAdapter implements PackageManager.Volume {
-    root: wasmer.Directory
-    constructor(root: wasmer.Directory) {
-        this.root = root;
-    }
-
-    mkdir(pathname: string, options: { recursive: boolean; }): Promise<void> {
-        return options.recursive ? this.root.createDirs(pathname)
-                                 : this.root.createDir(pathname);
-    }
-
-    writeFile(filename: string, content: string | Uint8Array): Promise<void> {
-        return this.root.writeFileRO(filename, content);
-    }
-
-    lazyInstall(path: string = "/", resource: Resource) {
-        let hid = 9;
-    
-        let hooks = new wasmer.Hooks;
-        hooks.populate = hid;
-        this.root.setHooks(hooks);
-
-        return new Map([
-            [hid, () =>
-                new PackageManager(this).installArchive(path, resource)
-            ]
-        ]);
-    }
-}

@@ -22,13 +22,38 @@ function initHook(imp: {env?: object, wasik?: object}, m: WebAssembly.Module) {
         for (let [k, v] of ext) imp[ns][k] = v;
 
     proc.trace.syscalls = console.warn;
-    proc.dyld.trace = console.warn;
+    //proc.dyld.trace = console.warn;
 
     globalThis.proc = proc; // dev mode
     return proc;
 }
 
 
+class FsHookMaster {
+    actions = new Map<number, () => Promise<void>>()
+
+    with(actions: typeof this.actions) {
+        for (let [k, v] of actions.entries())
+            this.actions.set(k, v);
+        return this;
+    }
+
+    dispatch() { console.warn(' fs hook dispatch from main thread?') }
+
+    async intercept(m: {op: number, out: SharedArrayBuffer}) {
+        console.log('==  fs hook intercept ==', m);
+        if (m.op !== undefined) {
+            let op = this.actions.get(m.op);
+            this.actions.delete(m.op);  // each op is single-shot
+            if (op) await op();
+
+            if (m.out)
+                Atomics.notify(new Int32Array(m.out), 0);
+        }
+    }
+}
+
+
 globalThis.init_hook = initHook;
 
-export { initHook }
+export { initHook, FsHookMaster }

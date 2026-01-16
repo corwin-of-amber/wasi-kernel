@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "module": "nodenext",
+    "target": "es2022",
+    "module": "preserve",
     "lib": ["es2022", "dom"],
-    "moduleResolution": "nodenext",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "downlevelIteration": true,
     "declaration": true,

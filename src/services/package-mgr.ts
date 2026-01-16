@@ -12,6 +12,8 @@ import { unzipSync } from 'fflate';
 import tar from 'tar-stream';
 import concat from 'concat-stream';
 
+import * as wasmer from '@wasmer/sdk';
+
 
 namespace PackageManager {
     export interface Volume {
@@ -133,11 +135,6 @@ class PackageManager extends EventEmitter {
             this.emit('progress', {path: filename, uri, done: true});
         }
     }
-
-    isSymlink(mode: number) {
-        return (mode & S_IFMT) === S_IFLNK;
-    }
-
 }
 
 type ResourceBundle = {[fn: string]: string | Uint8Array | Resource | Resource[]}
@@ -198,10 +195,45 @@ class ResourceBlob extends Resource {
 type DownloadProgress = { uri: string, total: number, downloaded: number };
 
 
-// - from fs.constants
-const S_IFMT = 0o170000,
-      S_IFLNK = 0o120000;
+
+class DirectoryVolumeAdapter implements Volume {
+    root: wasmer.Directory
+
+    constructor(root: wasmer.Directory) {
+        this.root = root;
+    }
+
+    mkdir(pathname: string, options: { recursive: boolean; }): Promise<void> {
+        return options.recursive ? this.root.createDirs(pathname)
+                                 : this.root.createDir(pathname);
+    }
+
+    writeFile(filename: string, content: string | Uint8Array): Promise<void> {
+        return this.root.writeFileRO(filename, content);
+    }
+
+    link(filename: string, target: string): Promise<void> {
+        /** @todo */
+        throw new Error(`symlinks not supported in this medium (installing '${filename}')`);        
+    }
+
+    lazyInstall(path: string = "/", resource: Resource) {
+        let hid = ++DirectoryVolumeAdapter.hid;
+    
+        let hooks = new wasmer.Hooks;
+        hooks.populate = hid;
+        this.root.setHooks(hooks);
+
+        return new Map([
+            [hid, () =>
+                new PackageManager(this).installArchive(path, resource)
+            ]
+        ]);
+    }
+
+    static hid = 0;
+}
 
 
-
-export { PackageManager, Resource, ResourceBlob, ResourceBundle, DownloadProgress }
+export { PackageManager, Resource, ResourceBlob, ResourceBundle, DownloadProgress,
+         DirectoryVolumeAdapter }
