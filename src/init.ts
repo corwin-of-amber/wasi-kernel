@@ -41,7 +41,10 @@ class FsHookMaster {
         return this;
     }
 
-    dispatch() { console.warn(' fs hook dispatch from main thread?') }
+    dispatch(op: number) {
+        if (this.actions.has(op))
+            console.warn(' fs hook dispatch from main thread?');
+    }
 
     async intercept(m: {op: number, out: SharedArrayBuffer}) {
         console.log('==  fs hook intercept ==', m);

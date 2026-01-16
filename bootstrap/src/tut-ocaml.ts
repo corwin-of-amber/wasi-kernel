@@ -48,7 +48,7 @@ async function main() {
         'bin/busybox': binfile(busyboxWasm),
         'bin/ls': binfile(busyboxWasm),
         'bin/cat': binfile(busyboxWasm),
-        'share/a.ml': textfile('a.ml'),
+        'share/a.ml': textfile('progs/ocaml/a.ml'),
         'bin/ocamlrun': binfile(ocamlWasm),
 
         'lib/dllcamlstr.so': binfile(`${OCAML_ROOT}/otherlibs/str/dllcamlstr.wasm`),
@@ -64,8 +64,8 @@ async function main() {
         'lib/shadow_stdlib.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/shadow_stdlib.cma`),
 
         'lib/rocqworker.byte': binfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/rocqworker.byte`),
-        'lib/dlllib_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/jscoq+64bit/backend/wasm/dlllib_stubs.wasm`),
-        'lib/dllcoqrun_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/jscoq+64bit/backend/wasm/dllcoqrun_stubs.wasm`),
+        'lib/dlllib_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/wasm/dlllib_stubs.wasm`),
+        'lib/dllcoqrun_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/wasm/dllcoqrun_stubs.wasm`),
 
         'lib/findlib.conf': 'path="/usr/lib"',
         'lib/rocq-runtime/META': textfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/META`),
