@@ -88,6 +88,7 @@ class Pty extends EventEmitter {
 }
 
 interface Pty {
+    on(ev: 'data', h: (buf: Uint8Array) => any): this;
     on(ev: 'term:data', h: (buf: Uint8Array) => any): this;
 }
 

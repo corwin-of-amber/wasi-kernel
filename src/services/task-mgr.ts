@@ -5,10 +5,12 @@ import * as wasmer from '@wasmer/sdk';
  */
 class ChildProcess {
     instance: wasmer.Instance
+    runtime?: wasmer.Runtime
     stdin: Stdin
 
-    constructor(instance: wasmer.Instance) {
+    constructor(instance: wasmer.Instance, runtime?: wasmer.Runtime) {
         this.instance = instance;
+        this.runtime = runtime;
         this.stdin = new Stdin(this.instance.stdin.getWriter());
     }
 
@@ -17,11 +19,14 @@ class ChildProcess {
     }
 
     async *read() {
-        let streams = [this.instance.stdout, this.instance.stderr],
-            td = new TextDecoder();
+        let td = new TextDecoder();
 
-        for await (let chunk of readCollate(streams))
+        for await (let chunk of this.readRaw())
             yield td.decode(chunk.value);
+    }
+
+    readRaw() {
+        return readCollate([this.instance.stdout, this.instance.stderr]);
     }
 }
 

@@ -14,7 +14,7 @@ function initHook(imp: {env?: object, wasik?: object}, m: WebAssembly.Module) {
     // Generate stubs for missing system functions
     for (let e of WebAssembly.Module.imports(m)) {
         if (e.module === 'env' && e.kind === 'function')
-            imp.env[e.name] = () => console.warn('[stub]', e);
+            imp.env[e.name] = () => { console.warn('[stub]', e); return 0; }
     }
 
     // Provide Proc instance services

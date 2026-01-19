@@ -22,7 +22,7 @@ globalThis.onmessage = async ev => {
 
     worker = new ThreadPoolWorker(id);
 
-    await import('/build/worker/init.js');
+    await import('../build/worker/init.js');
 
     // Now that we're initialized, we need to handle any buffered messages
     for (const msg of pendingMessages.splice(0, pendingMessages.length)) {

@@ -3,19 +3,13 @@
   "version": "0.2.0",
   "description": "A POSIX-like runtime environment on top of Wasmer-JS",
   "browser": "src/kernel/index.ts",
-  "main": "lib/kernel/index.js",
+  "main": "./index",
   "bin": {
     "wasi-kit": "scripts/kit.js"
   },
   "exports": {
-    ".": {
-      "types": "./lib/kernel/index.d.ts",
-      "import": "./lib/kernel/index.js"
-    },
-    "./cjs": "./lib/kernel/index.cjs.js",
-    "./bits/tty": "./src/kernel/bits/tty.ts",
-    "./services": "./src/kernel/services/index.ts",
-    "./extra/shell": "./src/extra/shell/shell.ts"
+    ".": "./src/index.ts",
+    "./services": "./src/services/index.ts"
   },
   "side-effects": false,
   "scripts": {

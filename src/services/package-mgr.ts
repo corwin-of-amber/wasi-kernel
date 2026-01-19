@@ -119,7 +119,12 @@ class PackageManager extends EventEmitter {
                 // install regular file
                 if (isMultiple(content))
                     throw new Error(`cannot install multiple resource into regular file '${filename}'`);
-                await this.installFile(filename, content);
+                if (content instanceof SpecialEntry) {
+                    if (content instanceof Symlink)
+                        await this.installSymlink(filename, content.target);
+                }
+                else
+                    await this.installFile(filename, content);
             }
             else {
                 // install into a directory
@@ -137,7 +142,11 @@ class PackageManager extends EventEmitter {
     }
 }
 
-type ResourceBundle = {[fn: string]: string | Uint8Array | Resource | Resource[]}
+type ResourceBundle = {[fn: string]: ResourceContent}
+type ResourceContent = string | Uint8Array | Resource | Resource[] | SpecialEntry
+
+abstract class SpecialEntry { }
+class Symlink extends SpecialEntry { constructor(public target: string) { super(); } }
 
 function isMultiple(x: any): x is Resource[] {
     return Array.isArray(x) && x[0] instanceof Resource;
@@ -213,8 +222,10 @@ class DirectoryVolumeAdapter implements Volume {
     }
 
     link(filename: string, target: string): Promise<void> {
+        this.root.softLink(target, filename);
+        return Promise.resolve();
         /** @todo */
-        throw new Error(`symlinks not supported in this medium (installing '${filename}')`);        
+        //throw new Error(`symlinks not supported in this medium (installing '${filename}')`);        
     }
 
     lazyInstall(path: string = "/", resource: Resource) {
@@ -235,5 +246,5 @@ class DirectoryVolumeAdapter implements Volume {
 }
 
 
-export { PackageManager, Resource, ResourceBlob, ResourceBundle, DownloadProgress,
-         DirectoryVolumeAdapter }
+export { PackageManager, Resource, ResourceBlob, ResourceBundle, Symlink,
+         DownloadProgress, DirectoryVolumeAdapter }
