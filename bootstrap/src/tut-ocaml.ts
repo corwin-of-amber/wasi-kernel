@@ -2,7 +2,6 @@ import fs from 'fs';
 import * as wasmer from "@wasmer/sdk";
 import { init, Runtime, Wasmer } from "@wasmer/sdk";
 
-import { Proc } from '../../src/core/bits/proc';
 import { PackageManager, Resource, DirectoryVolumeAdapter } from '../../src/services/package-mgr';
 
 import { FsHookMaster } from '../../src/init.ts';
@@ -19,15 +18,11 @@ const workerUrl = "/src/worker.js"
 
 async function main() {
 
-    await init({module: wasmBindgenUrl, log: "error"});
+    await init({module: wasmBindgenUrl, log: "trace"});
     wasmer.setSDKUrl(sdkUrl);
     wasmer.setWorkerUrl(workerUrl);
     
     let rt = new Runtime();
-
-    const busyboxWasm = '~/var/ext/wasm/ports/busybox/busybox.wasm',
-          ocamlWasm = '~/var/ext/wasm/ports/ocaml/ocaml-4.14/runtime/ocamlrun.wasm';
-
     Object.assign(window, {rt});
 
     var term = new MiniTerm(document.querySelector('#term'));
@@ -41,14 +36,17 @@ async function main() {
     const PORTS_ROOT = '~/var/ext/wasm/ports',
           OCAML_ROOT = `${PORTS_ROOT}/ocaml/ocaml-4.14`,
           OCAML_LIBS_ROOT = `${PORTS_ROOT}/ocaml/libs`,
-          JSCOQ_WORKDIR = `~/var/workspace/jscoq`;
+          JSCOQ_WORKDIR = `~/var/workspace/jscoq`,
+
+          busyboxWasm = `${PORTS_ROOT}/busybox/busybox.wasm`,
+          ocamlWasm = `${OCAML_ROOT}/runtime/ocamlrun.wasm`;
 
 
     let vfs = new wasmer.Directory({
         'bin/busybox': binfile(busyboxWasm),
         'bin/ls': binfile(busyboxWasm),
         'bin/cat': binfile(busyboxWasm),
-        'share/a.ml': textfile('progs/ocaml/a.ml'),
+        'share/sane.ml': textfile('progs/ocaml/sane.ml'),
         'bin/ocamlrun': binfile(ocamlWasm),
 
         'lib/dllcamlstr.so': binfile(`${OCAML_ROOT}/otherlibs/str/dllcamlstr.wasm`),
@@ -71,26 +69,34 @@ async function main() {
         'lib/rocq-runtime/META': textfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/META`),
     })
 
-    await new PackageManager(new DirectoryVolumeAdapter(vfs))
-        .installArchive('lib/rocq-runtime', rcsfile(`${JSCOQ_WORKDIR}/coq-pkgs/init.coq-pkg`, 'application/zip'));
-    
+    Object.assign(window, {vfs})
+
+    let pm = new PackageManager(new DirectoryVolumeAdapter(vfs));
+
+    await pm.installArchive('lib/rocq-runtime', rcsfile(`${JSCOQ_WORKDIR}/coq-pkgs/init.coq-pkg`, 'application/zip'));
+    await pm.installArchive('/local/lib/ocaml', rcsfile(`${OCAML_ROOT}/base.tar`));
+
+    await vfs.softLink('/local/lib/ocaml/ocaml', '/bin/ocaml');
+
+        /*
     let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory()),
         lazy = vfs_ocaml.lazyInstall('/', rcsfile(`${OCAML_ROOT}/base.tar`));
 
     await vfs.createDir('/local');
     await vfs.createDir('/local/lib');
     vfs.mountDir('/local/lib/ocaml', vfs_ocaml.root);
+    */
 
     let home = new wasmer.Directory();
 
-    let fs_hook = new FsHookMaster().with(lazy);
+    //let fs_hook = new FsHookMaster().with(lazy);
 
-    Object.assign(window, {vfs, vfs_ocaml, fs_hook});
+    //Object.assign(window, {vfs, vfs_ocaml, fs_hook});
 
 
     const RUN =
-        //['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
-        ['ocamlrun', '/usr/lib/rocqworker.byte', '--kind=repl', '-boot', '-R', '/usr/lib/rocq-runtime', ''];
+        ['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
+        //['ocamlrun', '/usr/lib/rocqworker.byte', '--kind=repl', '-boot', '-R', '/usr/lib/rocq-runtime', ''];
         //['sh'];
         //['busybox', 'ls'];
         //['jump']  ['subproc']   ['threads']   ['files']
@@ -113,6 +119,8 @@ async function main() {
 
     let bin = (fs.readFileSync(prog.wasmFn)),
         exe = await WebAssembly.compile(bin);
+
+    //bin = fs.readFileSync('progs/ocaml/sane.exe')
 
     Object.assign(window, {bin, exe});
 
