@@ -17,9 +17,9 @@ import * as wasmer from '@wasmer/sdk';
 
 namespace PackageManager {
     export interface Volume {
-        mkdir(filename: string, options: {recursive: boolean}): Promise<void>
+        mkdir(filename: string, options?: {recursive?: boolean}): Promise<void>
         writeFile(filename: string, content: string | Uint8Array): Promise<void>
-        link(filename: string, target: string): Promise<void>
+        link(target: string, source: string): Promise<void>
     }
 }
 
@@ -49,7 +49,7 @@ class PackageManager extends EventEmitter {
 
     async installSymlink(filename: string, target: string) {
         await this.volume.mkdir(path.dirname(filename), {recursive: true});
-        return this.volume.link(filename, target);
+        return this.volume.link(target, filename);
     }
 
     async installZip(rootdir: string, content: Resource | Blob, progress: (p: DownloadProgress) => void = () => {}) {
@@ -212,7 +212,7 @@ class DirectoryVolumeAdapter implements Volume {
         this.root = root;
     }
 
-    mkdir(pathname: string, options: { recursive: boolean; }): Promise<void> {
+    mkdir(pathname: string, options: {recursive?: boolean} = {}): Promise<void> {
         return options.recursive ? this.root.createDirs(pathname)
                                  : this.root.createDir(pathname);
     }
@@ -221,14 +221,12 @@ class DirectoryVolumeAdapter implements Volume {
         return this.root.writeFileRO(filename, content);
     }
 
-    link(filename: string, target: string): Promise<void> {
-        this.root.softLink(target, filename);
+    link(target: string, source: string): Promise<void> {
+        this.root.softLink(target, source);
         return Promise.resolve();
-        /** @todo */
-        //throw new Error(`symlinks not supported in this medium (installing '${filename}')`);        
     }
 
-    lazyInstall(path: string = "/", resource: Resource) {
+    lazyInstall(rcs: ResourceBundle) {
         let hid = ++DirectoryVolumeAdapter.hid;
     
         let hooks = new wasmer.Hooks;
@@ -236,9 +234,7 @@ class DirectoryVolumeAdapter implements Volume {
         this.root.setHooks(hooks);
 
         return new Map([
-            [hid, () =>
-                new PackageManager(this).installArchive(path, resource)
-            ]
+            [hid, () => new PackageManager(this).install(rcs)]
         ]);
     }
 

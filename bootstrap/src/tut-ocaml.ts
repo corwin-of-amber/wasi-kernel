@@ -42,62 +42,65 @@ async function main() {
           ocamlWasm = `${OCAML_ROOT}/runtime/ocamlrun.wasm`;
 
 
-    let vfs = new wasmer.Directory({
-        'bin/busybox': binfile(busyboxWasm),
-        'bin/ls': binfile(busyboxWasm),
-        'bin/cat': binfile(busyboxWasm),
-        'share/sane.ml': textfile('progs/ocaml/sane.ml'),
-        'bin/ocamlrun': binfile(ocamlWasm),
+    let vfs = new DirectoryVolumeAdapter(new wasmer.Directory({
+        '/usr/bin/busybox': binfile(busyboxWasm),
+        '/usr/bin/ls': binfile(busyboxWasm),
+        '/usr/bin/cat': binfile(busyboxWasm),
+        '/usr/share/sane.ml': textfile('progs/ocaml/sane.ml'),
+        '/usr/bin/ocamlrun': binfile(ocamlWasm),
 
-        'lib/dllcamlstr.so': binfile(`${OCAML_ROOT}/otherlibs/str/dllcamlstr.wasm`),
-        'lib/dllunix.so': binfile(`${OCAML_ROOT}/otherlibs/unix/dllunix.wasm`),
-        'lib/dllthreads.so': binfile(`${OCAML_ROOT}/otherlibs/systhreads/dllthreads.wasm`),
-        'lib/dllnums.so': binfile(`${OCAML_LIBS_ROOT}/num/src/dllnums.wasm`),
-        'lib/nums.cma': binfile(`${OCAML_LIBS_ROOT}/num/src/nums.cma`),
-        'lib/dllzarith.so': binfile(`${OCAML_LIBS_ROOT}/zarith/dllzarith.wasm`),
-        'lib/dllbase_stubs.so': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/dllbase_stubs.wasm`),
-        'lib/dllbase_internalhash_types_stubs.so': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/dllbase_internalhash_types_stubs.wasm`),
-        'lib/base.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/base.cma`),
-        'lib/base_internalhash_types.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/base_internalhash_types.cma`),
-        'lib/shadow_stdlib.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/shadow_stdlib.cma`),
+        '/home/a.ml': '',
 
-        'lib/rocqworker.byte': binfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/rocqworker.byte`),
-        'lib/dlllib_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/wasm/dlllib_stubs.wasm`),
-        'lib/dllcoqrun_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/wasm/dllcoqrun_stubs.wasm`),
+        '/usr/lib/dllcamlstr.so': binfile(`${OCAML_ROOT}/otherlibs/str/dllcamlstr.wasm`),
+        '/usr/lib/dllunix.so': binfile(`${OCAML_ROOT}/otherlibs/unix/dllunix.wasm`),
+        '/usr/lib/dllthreads.so': binfile(`${OCAML_ROOT}/otherlibs/systhreads/dllthreads.wasm`),
+        '/usr/lib/dllnums.so': binfile(`${OCAML_LIBS_ROOT}/num/src/dllnums.wasm`),
+        '/usr/lib/nums.cma': binfile(`${OCAML_LIBS_ROOT}/num/src/nums.cma`),
+        '/usr/lib/dllzarith.so': binfile(`${OCAML_LIBS_ROOT}/zarith/dllzarith.wasm`),
+        '/usr/lib/dllbase_stubs.so': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/dllbase_stubs.wasm`),
+        '/usr/lib/dllbase_internalhash_types_stubs.so': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/dllbase_internalhash_types_stubs.wasm`),
+        '/usr/lib/base.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/base.cma`),
+        '/usr/lib/base_internalhash_types.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/base_internalhash_types.cma`),
+        '/usr/lib/shadow_stdlib.cma': binfile(`${OCAML_LIBS_ROOT}/janestreet/base/lib/shadow_stdlib.cma`),
 
-        'lib/findlib.conf': 'path="/usr/lib"',
-        'lib/rocq-runtime/META': textfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/META`),
-    })
+        '/usr/lib/rocqworker.byte': binfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/rocqworker.byte`),
+        '/usr/lib/dlllib_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/wasm/dlllib_stubs.wasm`),
+        '/usr/lib/dllcoqrun_stubs.so': binfile(`${JSCOQ_WORKDIR}/_build/wasm/dllcoqrun_stubs.wasm`),
+
+        '/usr/lib/findlib.conf': 'path="/usr/lib"',
+        '/usr/lib/rocq-runtime/META': textfile(`${JSCOQ_WORKDIR}/_build/install/jscoq+64bit/lib/rocq-runtime/META`),
+    }));
 
     Object.assign(window, {vfs})
 
-    let pm = new PackageManager(new DirectoryVolumeAdapter(vfs));
+    let pm = new PackageManager(vfs);
 
-    await pm.installArchive('lib/rocq-runtime', rcsfile(`${JSCOQ_WORKDIR}/coq-pkgs/init.coq-pkg`, 'application/zip'));
-    await pm.installArchive('/local/lib/ocaml', rcsfile(`${OCAML_ROOT}/base.tar`));
+    await pm.installArchive('/usr/lib/rocq-runtime', rcsfile(`${JSCOQ_WORKDIR}/coq-pkgs/init.coq-pkg`, 'application/zip'));
 
-    await vfs.softLink('/local/lib/ocaml/ocaml', '/bin/ocaml');
+    let fs_hook = new FsHookMaster();
 
-        /*
-    let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory()),
-        lazy = vfs_ocaml.lazyInstall('/', rcsfile(`${OCAML_ROOT}/base.tar`));
+    let ocamlLazy = true;
+    if (ocamlLazy) {
+        let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory());
+        fs_hook.with(vfs_ocaml.lazyInstall({
+            '/': rcsfile(`${OCAML_ROOT}/base.tar`)
+        }));
 
-    await vfs.createDir('/local');
-    await vfs.createDir('/local/lib');
-    vfs.mountDir('/local/lib/ocaml', vfs_ocaml.root);
-    */
+        await vfs.mkdir('/usr/local/lib', {recursive: true});
+        vfs.root.mountDir('/usr/local/lib/ocaml', vfs_ocaml.root);
+    }
+    else
+        await pm.installArchive('/usr/local/lib/ocaml', rcsfile(`${OCAML_ROOT}/base.tar`));
 
-    let home = new wasmer.Directory();
+    await vfs.link('/usr/local/lib/ocaml/ocaml', '/usr/bin/ocaml');
 
-    //let fs_hook = new FsHookMaster().with(lazy);
-
-    //Object.assign(window, {vfs, vfs_ocaml, fs_hook});
+    Object.assign(window, {vfs, fs_hook});
 
 
     const RUN =
-        ['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
+        //['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
         //['ocamlrun', '/usr/lib/rocqworker.byte', '--kind=repl', '-boot', '-R', '/usr/lib/rocq-runtime', ''];
-        //['sh'];
+        ['sh'];
         //['busybox', 'ls'];
         //['jump']  ['subproc']   ['threads']   ['files']
 
@@ -111,8 +114,8 @@ async function main() {
         runOpts: {
             program: RUN[0],
             args: RUN.slice(1),
-            mount: {'/usr': vfs, '/home': home},
-            cwd: '/usr',
+            mount: {'/': vfs.root},
+            cwd: '/home',
             env: {'OCAMLFIND_CONF': '/usr/lib/findlib.conf', 'HOME': '/home'}
         }
     };

@@ -24,7 +24,8 @@ async function main() {
 
     var term = new MiniTerm(document.querySelector('#term'));
 
-    let vfs = {usr: new wasmer.Directory(), home: new wasmer.Directory};
+    let vfs = new wasmer.Directory();
+    await vfs.createDir('/home');
 
     Object.assign(window, {vfs});
 
@@ -37,8 +38,8 @@ async function main() {
         runOpts: {
             program: RUN[0],
             args: RUN.slice(1),
-            mount: {'/usr': vfs.usr, '/home': vfs.home},
-            cwd: '/usr',
+            mount: {'/': vfs},
+            cwd: '/home',
             env: {'PATH': '/usr/bin', 'HOME': '/home'}
         }
     };
