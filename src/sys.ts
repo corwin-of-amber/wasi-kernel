@@ -1,5 +1,5 @@
 import * as wasmer from "@wasmer/sdk";
-import { init, Runtime, Wasmer } from "@wasmer/sdk";
+import { init, Runtime, WasmerInitInput } from "@wasmer/sdk";
 
 import { ChildProcess } from './services/task-mgr';
 
@@ -34,16 +34,19 @@ class System {
         this.uris = uris;
     }
 
-    async startup() {
-        await init({module: this.uris.wasmBindgen});
-        wasmer.setSDKUrl(this.uris.sdk);
-        wasmer.setWorkerUrl(this.uris.worker);
+    async startup(initOptions: WasmerInitInput = {}) {
+        await init({
+            module: this.uris.wasmBindgen, 
+            sdkUrl: this.uris.sdk,
+            workerUrl: this.uris.worker,
+            ...initOptions
+        });
 
         this.rt = new Runtime();
 
         // Default setup
         this.vfs = {'/usr': new wasmer.Directory, '/home': new wasmer.Directory};
-        this.cwd = '/usr';
+        this.cwd = '/home';
         this.env = {'PATH': '/usr/bin', 'HOME': '/home'};
     }
 
