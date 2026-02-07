@@ -44,6 +44,11 @@ int main(int argc, char *argv[]) {
         perror("peep (open)");
     }
     else {
+        struct stat stbuf;
+        int rc = fstat(fd, &stbuf);
+        if (rc < 0) perror("peep (stat)");
+        printf("mode = %o\n", stbuf.st_mode);
+
         char buf[80];
         size_t rd = read(fd, buf, 79);
         if (rd < 0) perror("peep (read)");

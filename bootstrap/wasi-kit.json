@@ -22,6 +22,14 @@
     "threads": {
         "native": false,
         "output": "threads.wasm"
+    },
+    "spawn": {
+        "native": false,
+        "output": "spawn.wasm"
+    },
+    "stdin": {
+        "native": false,
+        "output": "stdin.wasm"
     }
 
 }

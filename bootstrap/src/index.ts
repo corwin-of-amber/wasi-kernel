@@ -1,8 +1,7 @@
 
-import main from './tut-ocaml.ts';
+import main from './tut-hello.ts';
 import './shell.css';
 
-console.log(self);
 
 if (typeof window !== 'undefined') {
     main();

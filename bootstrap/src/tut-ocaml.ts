@@ -4,7 +4,7 @@ import { init, Runtime, Wasmer } from "@wasmer/sdk";
 
 import { PackageManager, Resource, DirectoryVolumeAdapter } from '../../src/services/package-mgr';
 
-import { FsHookMaster } from '../../src/init.ts';
+import { FsHookMaster } from '../../src/services/fs.ts';
 import { ChildProcess } from '../../src/services/task-mgr.ts';
 
 import { MiniTerm } from './miniterm.ts';
@@ -79,6 +79,7 @@ async function main() {
 
     let fs_hook = new FsHookMaster();
 
+    /*
     let ocamlLazy = true;
     if (ocamlLazy) {
         let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory());
@@ -89,10 +90,10 @@ async function main() {
         await vfs.mkdir('/usr/local/lib', {recursive: true});
         vfs.root.mountDir('/usr/local/lib/ocaml', vfs_ocaml.root);
     }
-    else
+    else*/
         await pm.installArchive('/usr/local/lib/ocaml', rcsfile(`${OCAML_ROOT}/base.tar`));
 
-    await vfs.link('/usr/local/lib/ocaml/ocaml', '/usr/bin/ocaml');
+    await vfs.symlink('/usr/local/lib/ocaml/ocaml', '/usr/bin/ocaml');
 
     Object.assign(window, {vfs, fs_hook});
 
@@ -100,8 +101,9 @@ async function main() {
     const RUN =
         //['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
         //['ocamlrun', '/usr/lib/rocqworker.byte', '--kind=repl', '-boot', '-R', '/usr/lib/rocq-runtime', ''];
-        ['sh'];
+        //['sh'];
         //['busybox', 'ls'];
+        ['busybox', 'less', 'a.ml']
         //['jump']  ['subproc']   ['threads']   ['files']
 
     const WASMS = {

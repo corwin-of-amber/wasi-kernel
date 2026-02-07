@@ -26,12 +26,19 @@ async function main() {
 
     let vfs = new wasmer.Directory();
     await vfs.createDir('/home');
+    await vfs.createDir('/bin');
+    for (let exe of ['hello', 'stdin']) {
+        try {
+            await vfs.writeFileRO(`/bin/${exe}`, new Uint8Array(fs.readFileSync(`${exe}.wasm`)));
+        }
+        catch (e) { console.warn(`${exe}.wasm`, e); }
+    }
 
     Object.assign(window, {vfs});
 
     const RUN =
-        ['hello'];
-        //['jump']  ['subproc']   ['threads']   ['files']
+        ['hello'] //  ['jump']  ['subproc']  ['threads']   ['files']
+        //['stdin'] ['spawn']
 
     const prog = {
         wasmFn: `${RUN[0]}.wasm`,
