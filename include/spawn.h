@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __wasix__
+#include_next <spawn.h>
+#else
+
 #include <sys/stat.h>
 #include <signal.h>
 
@@ -104,3 +108,5 @@ int
 
 
 WASI_C_END
+
+#endif
