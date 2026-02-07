@@ -5,8 +5,8 @@
  * into the worker.
  */
 
-import { EventEmitter } from 'events';
 import path from 'path';
+import { EventEmitter } from 'events';
 
 import { unzipSync } from 'fflate';
 import tar from 'tar-stream';
@@ -19,11 +19,15 @@ namespace PackageManager {
     export interface Volume {
         mkdir(filename: string, options?: {recursive?: boolean}): Promise<void>
         writeFile(filename: string, content: string | Uint8Array): Promise<void>
-        link(target: string, source: string): Promise<void>
+        readFile(filename: string): Promise<ArrayBuffer>
+        readFile(filename: string, encoding: 'utf-8'): Promise<string>
+        readdir(filename: string): Promise<string[]>
+        symlink(target: string, source: string): Promise<void>
     }
 }
 
 import Volume = PackageManager.Volume;
+import { FsHookMaster } from './fs';
 
 
 class PackageManager extends EventEmitter {
@@ -49,7 +53,7 @@ class PackageManager extends EventEmitter {
 
     async installSymlink(filename: string, target: string) {
         await this.volume.mkdir(path.dirname(filename), {recursive: true});
-        return this.volume.link(target, filename);
+        return this.volume.symlink(target, filename);
     }
 
     async installZip(rootdir: string, content: Resource | Blob, progress: (p: DownloadProgress) => void = () => {}) {
@@ -68,7 +72,7 @@ class PackageManager extends EventEmitter {
         let extract = tar.extract(),
             pending = [];
         extract.on('entry', async (header, stream, next) => {
-            let fullpath = `${rootdir}/${header.name}`, wait = false;
+            let fullpath = path.join(rootdir, header.name), wait = false;
 
             switch (header.type) {
             case 'symlink':
@@ -122,6 +126,8 @@ class PackageManager extends EventEmitter {
                 if (content instanceof SpecialEntry) {
                     if (content instanceof Symlink)
                         await this.installSymlink(filename, content.target);
+                    else
+                        console.warn(`unexpected entry for file '${filename}';`, content);
                 }
                 else
                     await this.installFile(filename, content);
@@ -131,6 +137,12 @@ class PackageManager extends EventEmitter {
                 if (content instanceof Resource || isMultiple(content))
                     await this.installArchive(filename, content, (p: DownloadProgress) =>
                         this.emit('progress', {path: filename, uri: uri ?? p.uri, download: p, done: false}));
+                else if (content instanceof SpecialEntry) {
+                    if (content instanceof Lazily)
+                        await this.subinstall(filename, content.bundle);
+                    else
+                        console.warn(`unexpected entry for directory '${filename}';`, content);
+                }
                 else
                     await this.volume.mkdir(filename, {recursive: true});
             }
@@ -140,13 +152,38 @@ class PackageManager extends EventEmitter {
             this.emit('progress', {path: filename, uri, done: true});
         }
     }
+
+    async subinstall(dir: string, bundle: ResourceBundle) {
+        if (this.volume instanceof DirectoryVolumeAdapter) {
+            await this.volume.mount(dir,
+                new DirectoryVolumeAdapter().withHook(
+                    v => this.subpm(v, {dir}).install(bundle)));
+        }
+        else
+            console.warn(`subinstall skipped for '${dir}' (not a Wasmer volume)`);
+    }
+
+    /**
+     * Create a new `PackageManager` and bind events to the current ones.
+     */
+    subpm(volume: Volume, props = {}): PackageManager {
+        let pm = new PackageManager(volume);
+        pm.on('progress',
+            ev => this.emit('progress', {...ev, subordinate: props}));
+        return pm;
+    }
 }
 
 type ResourceBundle = {[fn: string]: ResourceContent}
 type ResourceContent = string | Uint8Array | Resource | Resource[] | SpecialEntry
 
 abstract class SpecialEntry { }
-class Symlink extends SpecialEntry { constructor(public target: string) { super(); } }
+class Symlink extends SpecialEntry {
+    constructor(public target: string) { super(); } 
+}
+class Lazily extends SpecialEntry {
+    constructor(public bundle: ResourceBundle) { super(); }
+}
 
 function isMultiple(x: any): x is Resource[] {
     return Array.isArray(x) && x[0] instanceof Resource;
@@ -162,10 +199,16 @@ class Resource {
     }
 
     async arrayBuffer() {
+        let fl = await this.file();
+        if (fl) return fl;
+
         return (await fetch(this.uri)).arrayBuffer()
     }
 
     async blob(progress: (p: DownloadProgress) => void = () => {}) {
+        let fl = await this.file();
+        if (fl) return new Blob([fl]);
+
         progress({uri: this.uri, total: 1, downloaded: 0}); /* dummy entry */
         var response = await fetch(this.uri),
             total = +response.headers.get('Content-Length'),
@@ -190,6 +233,15 @@ class Resource {
         return new ResourceBlob(await this.blob(progress), this.uri);
     }
 
+    /** fast-path when fs is available */
+    async file() {
+        if (this.uri.startsWith('file://')) {
+            const fs = await import('fs').catch<null>(() => null);
+            if (fs?.promises?.readFile)
+                return fs.promises.readFile(new URL(this.uri).pathname);
+        }
+    }
+
 }
 
 class ResourceBlob extends Resource {
@@ -207,9 +259,11 @@ type DownloadProgress = { uri: string, total: number, downloaded: number };
 
 class DirectoryVolumeAdapter implements Volume {
     root: wasmer.Directory
+    options: {readonly?: boolean}
 
-    constructor(root: wasmer.Directory) {
-        this.root = root;
+    constructor(root?: wasmer.Directory, options: DirectoryVolumeAdapter['options'] = {}) {
+        this.root = root ?? new wasmer.Directory();
+        this.options = options;
     }
 
     mkdir(pathname: string, options: {recursive?: boolean} = {}): Promise<void> {
@@ -218,29 +272,80 @@ class DirectoryVolumeAdapter implements Volume {
     }
 
     writeFile(filename: string, content: string | Uint8Array): Promise<void> {
-        return this.root.writeFileRO(filename, content);
+        return this.options.readonly
+            ? this.root.writeFileRO(filename, content)
+            : this.root.writeFile(filename, content);
     }
 
-    link(target: string, source: string): Promise<void> {
+    readFile(filename: string): Promise<ArrayBuffer>
+    readFile(filename: string, encoding: 'utf-8'): Promise<string>
+
+    readFile(filename: string, encoding?: 'utf-8'): Promise<ArrayBuffer> | Promise<string> {
+        return encoding ? this.root.readTextFile(filename)
+                        : this.root.readFile(filename);
+    }
+
+    async readdir(filename: string) {
+        return (await this.root.readDir(filename)).map(e => e.name);
+    }
+
+    symlink(target: string, source: string): Promise<void> {
         this.root.softLink(target, source);
         return Promise.resolve();
     }
 
-    lazyInstall(rcs: ResourceBundle) {
-        let hid = ++DirectoryVolumeAdapter.hid;
-    
-        let hooks = new wasmer.Hooks;
-        hooks.populate = hid;
-        this.root.setHooks(hooks);
-
-        return new Map([
-            [hid, () => new PackageManager(this).install(rcs)]
-        ]);
+    withHook(onAccess: (vol: this) => Promise<void>) {
+        let master: FsHookMaster = globalThis.fs_hook ?? new FsHookMaster();
+        globalThis.fs_hook = master;
+        this._installHook(master.add(() => onAccess(this)));
+        return this;
     }
 
-    static hid = 0;
+    _installHook(populate: number) {
+        let hooks = new wasmer.Hooks;
+        hooks.populate = populate;
+        this.root.setHooks(hooks);
+    }
+
+    async mount(dir: string, vol: DirectoryVolumeAdapter) {
+        await this.mkdir(path.dirname(dir), {recursive: true});
+        this.root.mountDir(dir, vol.root);
+    }
+}
+
+/**
+ * A volume obtained by referring to a subtree within a parent volume.
+ * (not secure in any way, does not sanitize `..` elements in paths)
+ */
+class SubdirectoryVolume implements Volume {
+    root: {volume: Volume, dir: string}
+
+    constructor(volume: Volume, rootdir: string) {
+        this.root = {volume, dir: rootdir};
+    }
+
+    get _() { return this.root.volume; }
+    _abs(relpath: string) { return path.join(this.root.dir, relpath); }
+
+    mkdir(filename: string, options?: {recursive?: boolean}): Promise<void> {
+        return this._.mkdir(this._abs(filename), options);
+    }
+    writeFile(filename: string, content: string | Uint8Array): Promise<void> {
+        return this._.writeFile(this._abs(filename), content);
+    }
+    readFile(filename: string): Promise<ArrayBuffer>
+    readFile(filename: string, encoding: 'utf-8'): Promise<string>
+    readFile(filename: string, encoding?: 'utf-8'): Promise<ArrayBuffer> | Promise<string> {
+        return this._.readFile(this._abs(filename), encoding);
+    }
+    readdir(filename: string): Promise<string[]> {
+        return this._.readdir(this._abs(filename));
+    }
+    symlink(target: string, source: string): Promise<void> {
+        return this._.symlink(this._abs(target), this._abs(source));
+    }
 }
 
 
-export { PackageManager, Resource, ResourceBlob, ResourceBundle, Symlink,
-         DownloadProgress, DirectoryVolumeAdapter }
+export { PackageManager, Resource, ResourceBlob, ResourceBundle, Symlink, Lazily,
+         DownloadProgress, DirectoryVolumeAdapter, SubdirectoryVolume }

@@ -36,6 +36,9 @@ globalThis.onmessage = async ev => {
 
 
 globalThis.fs_hook = {
+    initiated(fs) {
+        this.fs = fs;
+    },
     dispatch: (op) => {
         console.warn('== fs_hook ==', op);
         let out = new SharedArrayBuffer(8, {maxByteLength: 8e6});

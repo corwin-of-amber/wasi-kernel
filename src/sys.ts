@@ -2,8 +2,9 @@ import * as wasmer from "@wasmer/sdk";
 import { init, Runtime, WasmerInitInput } from "@wasmer/sdk";
 
 import { ChildProcess } from './services/task-mgr';
+import { DirectoryVolumeAdapter } from "./services";
 
-//let window = {};
+
 
 const wasmBindgenUrl = 'node_modules/@wasmer/sdk/dist/wasmer_js_bg.wasm';
 const sdkUrl = 'node_modules/@wasmer/sdk/dist/index.mjs';
@@ -20,7 +21,7 @@ class System {
     }
 
     rt: Runtime
-    vfs: {[dir: string]: wasmer.Directory}
+    vfs: DirectoryVolumeAdapter
     cwd: string
     env: {[varname: string]: string}
 
@@ -45,7 +46,9 @@ class System {
         this.rt = new Runtime();
 
         // Default setup
-        this.vfs = {'/usr': new wasmer.Directory, '/home': new wasmer.Directory};
+        this.vfs = new DirectoryVolumeAdapter(new wasmer.Directory);
+        for (let d of ['/home', '/usr/bin'])
+            await this.vfs.mkdir(d, {recursive: true});
         this.cwd = '/home';
         this.env = {'PATH': '/usr/bin', 'HOME': '/home'};
     }
@@ -58,7 +61,7 @@ class System {
 
         let instance = await wasmer.runWasix(bin, {
             runtime: this.rt,   /** @todo one runtime per process for tty control? */
-            mount: this.vfs,
+            mount: {'/': this.vfs.root},
             cwd: this.cwd,
             env: this.env,
             ...runOpts, 
@@ -66,9 +69,9 @@ class System {
         return new ChildProcess(instance);
     }
 
-    async _bin(bin: string | URL | ArrayBuffer | Uint8Array): Promise<ArrayBuffer> {
+    async _bin(bin: string | URL | ArrayBuffer): Promise<ArrayBuffer> {
         if (typeof bin === 'string')
-            return await this.vfs['/usr'].readFile(bin);  /** @todo `usr` is currently hard-coded */
+            return await this.vfs.readFile(bin);
         else if (bin instanceof URL)
             return await (await fetch(bin)).arrayBuffer();
         else
