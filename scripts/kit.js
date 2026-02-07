@@ -311,7 +311,7 @@ class Compile extends Phase {
         return flags;
     }
 
-    getLinkFlags(flags) {
+    getLinkFlags(flags, config=undefined) {
         const wasixFlags = (!this.isWasix() || flags['-nostdlib'] || flags['-r']) ? [] : [
             '-pthread', /* required for the `tls` symbols */
             '-Wl,--import-memory',
@@ -327,6 +327,8 @@ class Compile extends Phase {
             '-Wl,--export=__tls_base',
             ...(flags['-shared'] ? [] : ['-Wl,--export-memory'])
         ];
+        if (!config?.args?.some(x => x.includes('--max-memory')))
+            wasixFlags.push("-Wl,--max-memory=4294967296");
         return [...wasixFlags,
                 ...(flags['-shared'] || flags['-nostdlib']) ? []
                     : this.buildStartupLib()];
@@ -345,7 +347,7 @@ class Compile extends Phase {
         if (!flags['-shared'])  /* wasix-libc seems to conflict with `-shared`. this might become an issue later. */
             patched.unshift(...this.getIncludeFlags());
         if (!flags['-c'])
-            patched.unshift(...this.getLinkFlags(flags));
+            patched.unshift(...this.getLinkFlags(flags, wasmOut.config));
 
         return patched;
     }
