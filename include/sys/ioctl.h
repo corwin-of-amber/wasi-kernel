@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __wasix__
+#include_next <sys/ioctl.h>
+#else
+
 #include <bits/ioctl.h>
 
 WASI_C_START
@@ -122,3 +126,5 @@ struct winsize {
 int ioctl (int, int, ...);
 
 WASI_C_END
+
+#endif

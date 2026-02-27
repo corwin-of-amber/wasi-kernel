@@ -1,7 +1,14 @@
 #pragma once
 
+#define __wasik_override_tcgetattr
+
+#ifdef __wasix__
+#include_next <termios.h>
+#endif
+
 WASI_C_START
 
+#ifndef __wasix__
 
 #include <features.h>
 
@@ -35,6 +42,30 @@ pid_t tcgetsid (int);
 #if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 void cfmakeraw(struct termios *);
 int cfsetspeed(struct termios *, speed_t);
+#endif
+
+#endif
+
+__attribute__((unused))
+int __wasik_tcgetattr (int fd, struct termios *t) {
+    int res = tcgetattr(fd, t);
+    /* wasix-libc does not implement those */
+    t->c_cc[VINTR] = '\x03';
+    t->c_cc[VQUIT] = '\x1c';
+    t->c_cc[VERASE] = '\x7f';
+    t->c_cc[VKILL] = '\x15';
+    t->c_cc[VEOF] = '\x04';
+    t->c_cc[VSTOP] = '\x13';
+    t->c_cc[VSUSP] = '\x1a';
+    t->c_cc[VREPRINT] = '\x12';
+    t->c_cc[VDISCARD] = '\x0f';
+    t->c_cc[VWERASE] = '\x17';
+    t->c_cc[VLNEXT] = '\x16';
+    return res;
+}
+
+#ifdef __wasik_override_tcgetattr
+#define tcgetattr(X,Y) __wasik_tcgetattr(X,Y)
 #endif
 
 WASI_C_END
