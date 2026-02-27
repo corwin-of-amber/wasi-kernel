@@ -9,7 +9,7 @@ class Proc {
         syscalls: Trace.NOP
     }
 
-    _funcTable = new WebAssembly.Table({element: 'anyfunc', initial: 1024, maximum: 1 << 16});
+    _funcTable = new WebAssembly.Table({element: 'anyfunc', initial: 1 << 15, maximum: 1 << 20});
 
     imports(): [string, [string, any][]][] {
         let bind = (o: object, l: string[]) => l.map(method => [method, o[method].bind(o)] as [string, any]);

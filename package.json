@@ -31,8 +31,10 @@
     "browser-or-node": "^2.0.0",
     "concat-stream": "^2.0.0",
     "fflate": "^0.8.2",
+    "itertools": "^2.5.0",
     "memfs": "3.0.4",
-    "tar-stream": "^2.2.0"
+    "tar-stream": "^2.2.0",
+    "@wasmer/sdk": "./packages/wasmer-js"
   },
   "devDependencies": {
     "@types/concat-stream": "^2.0.0",

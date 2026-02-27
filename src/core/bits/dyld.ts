@@ -1,3 +1,4 @@
+import itertools from 'itertools';
 import { Proc, TraceFunc, Trace } from './proc';
 import delegation from './autogen/delegation';
 
@@ -24,7 +25,7 @@ class DynamicLoader {
         if (def) return def;
 
         let fs = globalThis.fs_hook.fs,
-            fn = `/usr/lib/${path}`,
+            fn = path.startsWith('/') ? path : `/usr/lib/${path}`,
             wasm = new WebAssembly.Module(fs.readFileSync(fn));
             def = new DynamicLibrary.Def(wasm, reloc, {path, uri: `wasi://${fn}`});
 
@@ -135,7 +136,7 @@ namespace DynamicLibrary {
             memory.grow(this.memBlocks);
             funcTable.grow(this.tblSize);
 
-            var globals = this.globals(this.module, instance);
+            var globals = this.globals(this.module, instance, funcTable);
             var instance = new WebAssembly.Instance(this.module, {
                 env: { 
                     memory: memory,
@@ -178,7 +179,7 @@ namespace DynamicLibrary {
             return env;
         }
 
-        globals(module: WebAssembly.Module, main: WebAssembly.Instance) {
+        globals(module: WebAssembly.Module, main: WebAssembly.Instance, table: WebAssembly.Table) {
             var imports = WebAssembly.Module.imports(module),
                 g: Globals = {};
             for (let imp of imports) {
@@ -186,7 +187,8 @@ namespace DynamicLibrary {
                     var exp = main.exports[imp.name];
                     g[imp.module] ??= {};
                     g[imp.module][imp.name] = this._mkglobal(
-                        exp instanceof WebAssembly.Global ? exp.value : undefined);
+                        exp instanceof WebAssembly.Global ? exp.value :
+                        exp instanceof Function ? this._funcAddr(exp, table) : undefined);
                 }
             }
             return g;
@@ -220,6 +222,11 @@ namespace DynamicLibrary {
                 }
             }
             return g;
+        }
+
+        _funcAddr(func: Function, table: WebAssembly.Table) {
+            return itertools.find(itertools.range(table.length),
+                i => table.get(i) == func);
         }
 
         _mkglobal(initial: i32 = 0xDEADBEEF) {
