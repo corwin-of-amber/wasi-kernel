@@ -69,19 +69,19 @@ class PackageManager extends EventEmitter {
     async installTar(rootdir: string, content: Resource | Blob, progress: (p: DownloadProgress) => void = () => {}) {
         var payload = (content instanceof Resource) ? await content.blob(progress) : content,
             ui8a = new Uint8Array(await payload.arrayBuffer());  /** @todo streaming? */
-        let extract = tar.extract(),
-            pending = [];
+        let extract = tar.extract();
         extract.on('entry', async (header, stream, next) => {
             let fullpath = path.join(rootdir, header.name), wait = false;
 
             switch (header.type) {
             case 'symlink':
-                pending.push(this.installSymlink(fullpath, header.linkname)); break;
+                await this.installSymlink(fullpath, header.linkname); break;
             case 'file':
-                stream.pipe(concat(ui8a => {
-                    pending.push(this.installFile(fullpath, ui8a));
+                stream.pipe(concat({encoding: "uint8array"}, async ui8a => {
+                    await this.installFile(fullpath, ui8a);//.then(resolve);
+                    next();
                 }));
-                break;
+                return;  /* calls `next` on its own */
             case 'directory':
                 await this.volume.mkdir(fullpath, {recursive: true});
                 break;
@@ -97,7 +97,6 @@ class PackageManager extends EventEmitter {
             extract.on('error', reject);
             extract.end(ui8a);
         });
-        await Promise.all(pending);
     }
 
     async installArchive(rootdir: string, content: Resource | Resource[], progress: (p: DownloadProgress) => void = () => {}) {
@@ -156,7 +155,7 @@ class PackageManager extends EventEmitter {
     async subinstall(dir: string, bundle: ResourceBundle) {
         if (this.volume instanceof DirectoryVolumeAdapter) {
             await this.volume.mount(dir,
-                new DirectoryVolumeAdapter().withHook(
+                new DirectoryVolumeAdapter({readonly: true}).withHook(
                     v => this.subpm(v, {dir}).install(bundle)));
         }
         else
@@ -261,9 +260,14 @@ class DirectoryVolumeAdapter implements Volume {
     root: wasmer.Directory
     options: {readonly?: boolean}
 
-    constructor(root?: wasmer.Directory, options: DirectoryVolumeAdapter['options'] = {}) {
+    constructor(options?: DirectoryVolumeAdapter['options'])
+    constructor(root: wasmer.Directory, options?: DirectoryVolumeAdapter['options'])
+
+    constructor(...args: any[]) {
+        let [root, options]: [wasmer.Directory, DirectoryVolumeAdapter['options']] =
+            args[0] instanceof wasmer.Directory ? args as any : [undefined, args[0]];
         this.root = root ?? new wasmer.Directory();
-        this.options = options;
+        this.options = options ?? {};
     }
 
     mkdir(pathname: string, options: {recursive?: boolean} = {}): Promise<void> {

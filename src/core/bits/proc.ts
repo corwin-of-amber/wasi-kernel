@@ -145,6 +145,25 @@ class Proc {
     sorry() {
         for (var f: () => void; f = this.pending.pop(); f());
     }
+
+    // -------------------
+    // C++ exceptions part
+    // -------------------
+
+    getThrown(exn: WebAssembly.Exception) {
+        let exnTag = this.instance.exports.__cpp_exception;
+        if (exnTag === undefined)
+            throw new Error("exported tag `__cpp_exception` not found");
+        // magic number 32 is the size of `_Unwind_Exception` (aligned to 16 bytes)
+        return exn.getArg(exnTag, 0) + 32;
+    }
+
+    stdExceptionWhat(exn: WebAssembly.Exception | i32) {
+        let thrown = typeof exn === 'number' ? exn : this.getThrown(exn),
+            vtable = this.mem.getUint32(thrown, true),
+            what = this.mem.getUint32(vtable + 8, true);  /* offset of `what()` in vtable */
+        return this.userGetCStringUTF8(this.funcTable.get(what)(thrown));
+    }
 }
 
 
@@ -167,4 +186,4 @@ const Trace = {
 }
 
 
-export { Proc, TraceFunc, Trace }
+export { Proc, TraceFunc, Trace, i32 }

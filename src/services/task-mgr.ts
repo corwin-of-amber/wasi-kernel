@@ -53,15 +53,17 @@ async function *readCollate(s: ReadableStream[]) {
                  [await r.read(), i] as [ReadableStreamReadResult<any>, number];
     let p = r.map(poll);
     while (p.some(x => x)) {
-        let [chunk, idx] = await Promise.any(Object.values(p));
+        try {
+            let [chunk, idx] = await Promise.any(Object.values(p));
 
-        if (chunk.done) {
-            delete p[idx];
-        }
-        else {
-            yield chunk;
-            p[idx] = poll(r[idx], idx);
-        }
+            if (chunk.done) {
+                delete p[idx];
+            }
+            else {
+                yield chunk;
+                p[idx] = poll(r[idx], idx);
+            }
+        } catch (e) { console.warn('[readCollate]', e); }
     }
 }
 

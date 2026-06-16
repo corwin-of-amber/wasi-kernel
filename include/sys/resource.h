@@ -47,4 +47,11 @@ int
 
 WASI_C_END
 
+#else
+
+#ifndef RLIMIT_STACK
+#define RLIMIT_STACK   3
+#endif
+
+
 #endif

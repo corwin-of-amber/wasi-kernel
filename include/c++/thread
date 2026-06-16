@@ -1,8 +1,11 @@
 #pragma once
 
+#ifdef _LIBCPP_HAS_NO_THREADS
 
 #undef _LIBCPP_HAS_NO_THREADS
 #undef _LIBCPP_HAS_NO_ATOMIC_HEADER
-#define _LIBCPP_HAS_THREAD_API_PTHREAD
+#define _LIBCPP_HAS_THREAD_API_PTHREAD 1
+
+#endif
 
 #include_next <thread>

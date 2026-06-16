@@ -27,19 +27,20 @@
     "tsconfig.json"
   ],
   "dependencies": {
+    "@wasmer/sdk": "./packages/wasmer-js",
     "assert": "^2.0.0",
     "browser-or-node": "^2.0.0",
     "concat-stream": "^2.0.0",
     "fflate": "^0.8.2",
     "itertools": "^2.5.0",
     "memfs": "3.0.4",
-    "tar-stream": "^2.2.0",
-    "@wasmer/sdk": "./packages/wasmer-js"
+    "tar-stream": "^2.2.0"
   },
   "devDependencies": {
     "@types/concat-stream": "^2.0.0",
     "@types/node": "^13.1.1",
     "@types/tar-stream": "^2.2.2",
+    "@types/web": "^0.0.350",
     "buffer": "^6.0.3",
     "events": "^3.3.0",
     "path-browserify": "^1.0.1",

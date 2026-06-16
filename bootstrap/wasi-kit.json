@@ -30,6 +30,30 @@
     "stdin": {
         "native": false,
         "output": "stdin.wasm"
+    },
+    "io-fstream": {
+        "wasix": false,
+        "native": false,
+        "output": "io-fstream.wasm"
+    },
+    "exceptions": {
+        "wasix": false,
+        "native": false,
+        "output": "exceptions.wasm",
+        "args": ["-fwasm-exceptions",
+            "-Wl,--export=__cpp_exception", "-Wl,--export-table",
+            "-mllvm=-wasm-use-legacy-eh=false", "-lunwind",
+            "-Wl,--allow-undefined"],
+        "minSdk": 33
+    },
+    "exceptions+threads": {
+        "wasix": true,
+        "native": false,
+        "output": "exceptions.wasm",
+        "args": ["-fwasm-exceptions", "--target=wasm32-wasi",
+            "-Wl,--export=__cpp_exception", "-Wl,--export-table",
+            "-mllvm=-wasm-use-legacy-eh=false",
+            "-Wl,--allow-undefined"],
+        "minSdk": 33
     }
-
 }

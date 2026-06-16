@@ -2,6 +2,7 @@ console.log(">> Worker is starting.", globalThis)
 
 Error.stackTraceLimit = 50;
 globalThis.onerror = console.error;
+globalThis.lastWasmError = undefined;
 
 let pendingMessages = [];
 let worker = undefined;
@@ -31,6 +32,13 @@ globalThis.onmessage = async ev => {
   } else {
     // Handle the message like normal.
     await handleMessage(ev.data);
+  }
+
+  if (lastWasmError) {
+    if (lastWasmError instanceof WebAssembly.Exception) {
+      console.error('C++ exception:', proc.stdExceptionWhat(lastWasmError));
+    }
+    lastWasmError = undefined;
   }
 };
 

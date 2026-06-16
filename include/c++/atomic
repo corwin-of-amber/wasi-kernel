@@ -1,14 +1,19 @@
 #pragma once
 
+#ifdef _LIBCPP_HAS_NO_THREADS
 
 #undef _LIBCPP_HAS_NO_THREADS
 #undef _LIBCPP_HAS_NO_ATOMIC_HEADER
-#define _LIBCPP_HAS_THREAD_API_PTHREAD
+#define _LIBCPP_HAS_THREAD_API_PTHREAD 1
 
 namespace std
 {
+#ifndef _LIBCPP_ATOMIC_FLAG_TYPE
     typedef bool _LIBCPP_ATOMIC_FLAG_TYPE;
+#endif
     inline void __libcpp_thread_yield() { }
 }
+
+#endif
 
 #include_next <atomic>

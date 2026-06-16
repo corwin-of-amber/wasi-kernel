@@ -18,6 +18,7 @@ static inline const char* dlerror(void) {
      return buf;
 }
 
+static void *const RTLD_DEFAULT = 0;
 static const int RTLD_NOW = 1;
 static const int RTLD_LAZY = 2;
 static const int RTLD_LOCAL = 4;

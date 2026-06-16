@@ -115,7 +115,7 @@ namespace DynamicLibrary {
         metadata: {path?: string, uri?: string}
 
         stackSize: number = 1 << 16    /** @todo */
-        memBlocks: number = 10         /** @todo */
+        memBlocks: number = 1024       /** @todo */
         tblSize: number = 1024         /** @todo */
 
         constructor(module: WebAssembly.Module, reloc: Relocations = {}, 
