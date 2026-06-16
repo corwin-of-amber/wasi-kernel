@@ -179,7 +179,7 @@ class Phase {
 
     isAsyncify() {
         return this.getConfigForCurrent().asyncify ??
-                this.getConfig().asyncify ?? this.isWasix();
+                this.getConfig().asyncify ?? false;
     }
 
     closest(basename, that_has = undefined) {
@@ -201,7 +201,7 @@ class Phase {
 class Compile extends Phase {
 
     FLAGS_BOOL = ['-c', '-r', '-E', '-P',
-                  '-shared', '-nostdlib', '-pthread']
+                  '-shared', '-bundle', '-nostdlib', '-pthread']
     FLAGS_MONADIC = ['-o', '-undefined']
 
     run(prog, args) {
@@ -234,6 +234,7 @@ class Compile extends Phase {
                 flags[arg] = args[i];
             }
         }
+        if (flags['-bundle']) flags['-shared'] = true;
         this.flags = flags;
     }
 
@@ -265,7 +266,7 @@ class Compile extends Phase {
         wasmOut.config ??= config["*"];
 
         if (wasmOut.config?.preset) {
-            Object.assign(wasmOut.config, config.presets?.[wasmOut.config.preset] ?? {});
+            this.mergeConfig(wasmOut.config, config.presets?.[wasmOut.config.preset] ?? {});
         }
 
         this.report(wasmOut, wasmIn, flags);
@@ -273,6 +274,19 @@ class Compile extends Phase {
         if (wasmOut.fn) {
             this.mkdirOf(wasmOut.fn); // wasm out may not be in the same directory as the native out
             return this.postProcessArgs(wasmOut, flags, patched);
+        }
+    }
+
+    mergeConfig(intoConfig, fromConfig) {
+        for (let [k, v] of Object.entries(fromConfig)) {
+            let val = intoConfig[k];
+            if (Array.isArray(val)) {
+                let splat = val.findIndex(el => JSON.stringify(el) === '["..."]');
+                if (splat >= 0)
+                    val.splice(splat, 1, ...Array.isArray(v) ? v : [v]);
+            }
+            else if (val === undefined)
+                intoConfig[k] = v;
         }
     }
 
@@ -307,7 +321,12 @@ class Compile extends Phase {
             '-fno-trapping-math',
         ]; */
 
-        if (wasiPreconf) flags.unshift(`-I${wasiPreconf}`);
+        if (wasiPreconf) {
+            flags.unshift(`-I${wasiPreconf}`);
+            let prelude = path.join(wasiPreconf, '_prelude.h')
+            if (fs.existsSync(prelude))
+                flags.unshift('-include', prelude);
+        }
         return flags;
     }
 
@@ -316,15 +335,15 @@ class Compile extends Phase {
             '-pthread', /* required for the `tls` symbols */
             '-Wl,--import-memory',
             '-Wl,--export-dynamic',
-            '-Wl,--export=__heap_base',
-            '-Wl,--export=__stack_pointer',
-            '-Wl,--export=__stack_low',
-            '-Wl,--export=__data_end',
-            '-Wl,--export=__wasm_init_tls',
-            '-Wl,--export=__wasm_signal',
-            '-Wl,--export=__tls_size',
-            '-Wl,--export=__tls_align',
-            '-Wl,--export=__tls_base',
+            '-Wl,--export-if-defined=__heap_base',
+            '-Wl,--export-if-defined=__stack_pointer',
+            '-Wl,--export-if-defined=__stack_low',
+            '-Wl,--export-if-defined=__data_end',
+            '-Wl,--export-if-defined=__wasm_init_tls',
+            '-Wl,--export-if-defined=__wasm_signal',
+            '-Wl,--export-if-defined=__tls_size',
+            '-Wl,--export-if-defined=__tls_align',
+            '-Wl,--export-if-defined=__tls_base',
             ...(flags['-shared'] ? [] : ['-Wl,--export-memory'])
         ];
         if (!config?.args?.some(x => x.includes('--max-memory')))
@@ -434,7 +453,7 @@ class FileOp extends Phase {
         for (let arg of args) {
             if (!arg.startsWith('-')) {
                 var out = patchOutput(arg);
-                if (out) arg = out.fn;
+                if (out?.fn) arg = out.fn;
                 else return;
             }
             patched.push(arg);
