@@ -14,6 +14,8 @@ void *thread(void *arg) {
     exit(2);
   }
   usleep(500000);
+  FILE *f = fopen("a.lean", "r");
+  printf("opened %p\n", f);
   strcpy(ret, "This is a test");
   pthread_exit(ret);
 }
