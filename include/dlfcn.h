@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __wasix__
+#include_next <dlfcn.h>
+#else
+
 WASI_C_START
 
 
@@ -26,3 +30,5 @@ static const int RTLD_GLOBAL = 8;
 
 
 WASI_C_END
+
+#endif
