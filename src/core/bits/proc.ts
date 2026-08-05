@@ -9,13 +9,14 @@ class Proc {
         syscalls: Trace.NOP
     }
 
-    _funcTable = new WebAssembly.Table({element: 'anyfunc', initial: 1 << 15, maximum: 1 << 20});
+    _imports?: {[ns: string]: {[name: string]: any}}
+    _funcTable: WebAssembly.Table = undefined
 
     imports(): [string, [string, any][]][] {
         let bind = (o: object, l: string[]) => l.map(method => [method, o[method].bind(o)] as [string, any]);
         return [
-            ['env', bind(this, ['__control_setjmp', '__control_setjmp_with_return', 'longjmp']).concat(
-                    [['__indirect_function_table', this._funcTable]])],
+            ['env', bind(this, ['__control_setjmp', '__control_setjmp_with_return',
+                                '__control_longjmp'])],
             ['wasik', bind(this.dyld, ['dlopen', 'dlsym', 'dlclose', 'dlerror_get']).concat(
                       bind(this, ['login_get', 'progname_get', 'sorry']))]
         ];
@@ -34,8 +35,10 @@ class Proc {
         return new DataView(this._mem.buffer);
     }
 
-    get funcTable() {
-        return this.instance.exports.__indirect_function_table as WebAssembly.Table ?? this._funcTable;
+    get funcTable(): WebAssembly.Table {
+        return this._funcTable ??=
+            this.instance.exports.__indirect_function_table ?? 
+            this._imports?.['env']?.['__indirect_function_table'];
     }
 
     // ------------
@@ -47,9 +50,19 @@ class Proc {
         return 0;
     }
 
+    longjmp(env: i32, val: i32) {
+        console.warn('longjmp called; expected __control_longjmp');
+        return this.__control_longjmp(env, val);
+    }
+
     sigsetjmp(env: i32, save_mask: i32) {
         console.warn('sigsetjmp called; expected __control_setjmp');
         return 0;
+    }
+
+    siglongjmp(env: i32, val: i32) {
+        console.warn('siglongjmp called; expected __control_longjmp');
+        return this.__control_longjmp(env, val);
     }
 
     __control_setjmp(env: i32, block: i32) {
@@ -79,8 +92,8 @@ class Proc {
         return this.__control_setjmp(env, block);
     }
 
-    longjmp(env: i32, val: i32) {
-        this.trace.syscalls(`longjmp [${env}] ${val}`);
+    __control_longjmp(env: i32, val: i32) {
+        this.trace.syscalls(`__control_longjmp [${env}] ${val}`);
         throw new Longjmp(env, val);
     }
 
