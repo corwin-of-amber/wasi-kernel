@@ -159,7 +159,7 @@ class Phase {
         var fn = this.closest('wasi-kit.json');
         return fn ? {
             basedir: path.dirname(fn),
-            ...JSON.parse(fs.readFileSync(fn, 'utf-8'))
+            ...this._json(fs.readFileSync(fn, 'utf-8'))
         } : {};
     }
 
@@ -170,6 +170,19 @@ class Phase {
 
     getConfigForCurrent() {
         return this.getConfigFor(this.getOutput() ?? '*');
+    }
+
+    mergeConfig(intoConfig, fromConfig) {
+        for (let [k, v] of Object.entries(fromConfig)) {
+            let val = intoConfig[k];
+            if (Array.isArray(val)) {
+                let splat = val.findIndex(el => JSON.stringify(el) === '["..."]');
+                if (splat >= 0)
+                    val.splice(splat, 1, ...Array.isArray(v) ? v : [v]);
+            }
+            else if (val === undefined)
+                intoConfig[k] = v;
+        }
     }
 
     isWasix() {
@@ -195,6 +208,12 @@ class Phase {
 
     log(s) {
         process.stderr.write(`${s}\n`);
+    }
+
+    _json(s) {
+        // One-liner comment stripper  (https://stackoverflow.com/a/62945875)
+        s = s.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m);
+        return JSON.parse(s);
     }
 }
 
@@ -277,19 +296,6 @@ class Compile extends Phase {
         }
     }
 
-    mergeConfig(intoConfig, fromConfig) {
-        for (let [k, v] of Object.entries(fromConfig)) {
-            let val = intoConfig[k];
-            if (Array.isArray(val)) {
-                let splat = val.findIndex(el => JSON.stringify(el) === '["..."]');
-                if (splat >= 0)
-                    val.splice(splat, 1, ...Array.isArray(v) ? v : [v]);
-            }
-            else if (val === undefined)
-                intoConfig[k] = v;
-        }
-    }
-
     getDefaultOutput(args) {
         var cInput = args.find(a => a.match(/[.]c$/));
         return cInput &&
@@ -334,7 +340,7 @@ class Compile extends Phase {
         const wasixFlags = (!this.isWasix() || flags['-nostdlib'] || flags['-r']) ? [] : [
             '-pthread', /* required for the `tls` symbols */
             '-Wl,--import-memory',
-            '-Wl,--export-dynamic',
+            //'-Wl,--export-dynamic',
             '-Wl,--export-if-defined=__heap_base',
             '-Wl,--export-if-defined=__stack_pointer',
             '-Wl,--export-if-defined=__stack_low',
