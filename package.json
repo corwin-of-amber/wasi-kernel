@@ -2,7 +2,7 @@
   "name": "wasi-kernel",
   "version": "0.2.0",
   "description": "A POSIX-like runtime environment on top of Wasmer-JS",
-  "browser": "src/kernel/index.ts",
+  "browser": "src/index.ts",
   "main": "./index",
   "bin": {
     "wasi-kit": "scripts/kit.js"
@@ -15,7 +15,6 @@
   "scripts": {
     "autogen": "node src/core/bits/autogen.js",
     "build": "webpack --mode production && tsc --emitDeclarationOnly",
-    "build:app": "parcel build shell.html",
     "dist": "rm -rf dist lib && npm run build && npm pack"
   },
   "files": [
@@ -27,7 +26,7 @@
     "tsconfig.json"
   ],
   "dependencies": {
-    "@wasmer/sdk": "./packages/wasmer-js",
+    "@wasmer/sdk": "file:./packages/wasmer-js",
     "assert": "^2.0.0",
     "browser-or-node": "^2.0.0",
     "concat-stream": "^2.0.0",
@@ -38,16 +37,15 @@
   },
   "devDependencies": {
     "@types/concat-stream": "^2.0.0",
-    "@types/node": "^13.1.1",
+    "@types/node": "^26.2.0",
     "@types/tar-stream": "^2.2.2",
-    "@types/web": "^0.0.350",
     "buffer": "^6.0.3",
     "events": "^3.3.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "ts-loader": "^9.4.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "wabt": "^1.0.23",
     "webpack": "^5.75.0",
     "webpack-bundle-analyzer": "^4.4.2",
@@ -58,5 +56,9 @@
   "license": "ISC",
   "browserslist": [
     "Chrome 78"
-  ]
+  ],
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true
+  }
 }

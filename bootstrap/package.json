@@ -12,5 +12,8 @@
     "chromium-args": "--enable-node-worker",
     "devDependencies": {
         "@types/node": "^22.10.2"
+    },
+    "dependencies": {
+        "@wasmer/sdk": "file:../packages/wasmer-js"
     }
 }

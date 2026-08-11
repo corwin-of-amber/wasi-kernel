@@ -10,7 +10,8 @@ dist
 /build
 /lib
 /packages
-/_npmlink
+_npmlink
+/_legacy
 autogen
 **/build/kremlin
 **/build/worker
