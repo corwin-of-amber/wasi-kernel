@@ -19,7 +19,7 @@ namespace PackageManager {
     export interface Volume {
         mkdir(filename: string, options?: {recursive?: boolean}): Promise<void>
         writeFile(filename: string, content: string | Uint8Array): Promise<void>
-        readFile(filename: string): Promise<ArrayBuffer>
+        readFile(filename: string): Promise<Uint8Array>
         readFile(filename: string, encoding: 'utf-8'): Promise<string>
         readdir(filename: string): Promise<string[]>
         symlink(target: string, source: string): Promise<void>
@@ -281,10 +281,10 @@ class DirectoryVolumeAdapter implements Volume {
             : this.root.writeFile(filename, content);
     }
 
-    readFile(filename: string): Promise<ArrayBuffer>
+    readFile(filename: string): Promise<Uint8Array>
     readFile(filename: string, encoding: 'utf-8'): Promise<string>
 
-    readFile(filename: string, encoding?: 'utf-8'): Promise<ArrayBuffer> | Promise<string> {
+    readFile(filename: string, encoding?: 'utf-8'): Promise<Uint8Array> | Promise<string> {
         return encoding ? this.root.readTextFile(filename)
                         : this.root.readFile(filename);
     }
@@ -337,9 +337,9 @@ class SubdirectoryVolume implements Volume {
     writeFile(filename: string, content: string | Uint8Array): Promise<void> {
         return this._.writeFile(this._abs(filename), content);
     }
-    readFile(filename: string): Promise<ArrayBuffer>
+    readFile(filename: string): Promise<Uint8Array>
     readFile(filename: string, encoding: 'utf-8'): Promise<string>
-    readFile(filename: string, encoding?: 'utf-8'): Promise<ArrayBuffer> | Promise<string> {
+    readFile(filename: string, encoding?: 'utf-8'): Promise<Uint8Array> | Promise<string> {
         return this._.readFile(this._abs(filename), encoding);
     }
     readdir(filename: string): Promise<string[]> {

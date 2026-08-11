@@ -57,10 +57,12 @@ type SignalVectorProps = {
     wait?: Int32Array
 };
 
-type i32 = number;
 type sighandler = (signum: number) => void;
 
 const NSIG = 20;
+
+const MaybeSharedArrayBuffer = typeof SharedArrayBuffer != 'undefined'
+    ? SharedArrayBuffer : ArrayBuffer;
 
 
 export { SignalVector }

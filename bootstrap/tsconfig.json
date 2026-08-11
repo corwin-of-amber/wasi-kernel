@@ -5,10 +5,9 @@
     "lib": ["es2022", "dom"],
     "moduleResolution": "bundler",
     "esModuleInterop": true,
-    "downlevelIteration": true,
     "declaration": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "outDir": "lib"
+    "strict": false
   }
 }

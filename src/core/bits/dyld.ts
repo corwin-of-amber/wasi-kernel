@@ -1,4 +1,4 @@
-import itertools from 'itertools';
+import * as itertools from 'itertools';
 import { Proc, TraceFunc, Trace } from './proc';
 import delegation from './autogen/delegation';
 

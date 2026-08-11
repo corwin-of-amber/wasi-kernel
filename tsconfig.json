@@ -5,9 +5,11 @@
     "lib": ["esnext", "dom"],
     "moduleResolution": "bundler",
     "esModuleInterop": true,
-    "downlevelIteration": true,
     "declaration": true,
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src",
+    "strict": false
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/extra"]
 }
