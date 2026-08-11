@@ -1,44 +1,50 @@
 {
     "wasix": true,
+    "*": {
+        "native": false
+    },
     "hello": {
-        "wasix": false,
         "native": false,
         "output": "hello.wasm",
         "args": ["-Wl,--allow-undefined"]
     },
     "files": {
-        "native": false,
         "asyncify": false,
         "output": "files.wasm"
     },
     "subproc": {
-        "native": false,
         "output": "subproc.wasm"
     },
+    "subproc-pipe": {
+        "output": "subproc-pipe.wasm"
+    },
     "jump": {
-        "native": false,
         "output": "jump.wasm"
     },
     "threads": {
-        "native": false,
-        "output": "threads.wasm"
+        "output": "threads.wasm",
+        "args": ["--target=wasm32-wasi", "-Wl,--allow-undefined"],
+        "_comment": ["for wasmer: add `-fPIC -Wl,-pie` and use wasix exnref-ehpic"]
     },
     "spawn": {
-        "native": false,
         "output": "spawn.wasm"
     },
     "stdin": {
-        "native": false,
         "output": "stdin.wasm"
+    },
+    "dl-simple": {
+        "args": ["-fwasm-exceptions", "--target=wasm32-wasi",
+                 "-Wl,--allow-multiple-definition", "-Wl,--allow-undefined",
+                 "-Wl,--export=simple_func", "-Wl,--export=simple_array", "-fPIC", "-Wl,--import-table"],
+        "output": "dl-simple.wasm",
+        "_comment": ["for wasmer: replace `-Wl,--import-table` with `-Wl,-pie` and use wasix exnref-ehpic"]
     },
     "io-fstream": {
         "wasix": false,
-        "native": false,
         "output": "io-fstream.wasm"
     },
     "exceptions": {
         "wasix": false,
-        "native": false,
         "output": "exceptions.wasm",
         "args": ["-fwasm-exceptions",
             "-Wl,--export=__cpp_exception", "-Wl,--export-table",
@@ -48,7 +54,6 @@
     },
     "exceptions+threads": {
         "wasix": true,
-        "native": false,
         "output": "exceptions.wasm",
         "args": ["-fwasm-exceptions", "--target=wasm32-wasi",
             "-Wl,--export=__cpp_exception", "-Wl,--export-table",
