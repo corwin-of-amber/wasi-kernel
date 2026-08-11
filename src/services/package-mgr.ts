@@ -152,11 +152,13 @@ class PackageManager extends EventEmitter {
         }
     }
 
-    async subinstall(dir: string, bundle: ResourceBundle) {
+    async subinstall(dir: string, bundle: Resource | ResourceBundle) {
         if (this.volume instanceof DirectoryVolumeAdapter) {
+            let bundle_ = Array.isArray(bundle) || bundle instanceof Resource ?
+                {"/": bundle} : bundle;
             await this.volume.mount(dir,
                 new DirectoryVolumeAdapter({readonly: true}).withHook(
-                    v => this.subpm(v, {dir}).install(bundle)));
+                    v => this.subpm(v, {dir}).install(bundle_)));
         }
         else
             console.warn(`subinstall skipped for '${dir}' (not a Wasmer volume)`);
@@ -181,7 +183,7 @@ class Symlink extends SpecialEntry {
     constructor(public target: string) { super(); } 
 }
 class Lazily extends SpecialEntry {
-    constructor(public bundle: ResourceBundle) { super(); }
+    constructor(public bundle: Resource | ResourceBundle) { super(); }
 }
 
 function isMultiple(x: any): x is Resource[] {
@@ -260,6 +262,8 @@ class DirectoryVolumeAdapter implements Volume {
     root: wasmer.Directory
     options: {readonly?: boolean}
 
+    mounts: {[subdir: string]: wasmer.Directory} = {}
+
     constructor(options?: DirectoryVolumeAdapter['options'])
     constructor(root: wasmer.Directory, options?: DirectoryVolumeAdapter['options'])
 
@@ -268,6 +272,7 @@ class DirectoryVolumeAdapter implements Volume {
             args[0] instanceof wasmer.Directory ? args as any : [undefined, args[0]];
         this.root = root ?? new wasmer.Directory();
         this.options = options ?? {};
+        this.mounts['/'] = this.root;
     }
 
     mkdir(pathname: string, options: {recursive?: boolean} = {}): Promise<void> {
@@ -294,7 +299,7 @@ class DirectoryVolumeAdapter implements Volume {
     }
 
     symlink(target: string, source: string): Promise<void> {
-        this.root.softLink(target, source);
+        this.root.createSymlink(target, source);
         return Promise.resolve();
     }
 
@@ -314,6 +319,7 @@ class DirectoryVolumeAdapter implements Volume {
     async mount(dir: string, vol: DirectoryVolumeAdapter) {
         await this.mkdir(path.dirname(dir), {recursive: true});
         this.root.mountDir(dir, vol.root);
+        this.mounts[dir] = vol.root;
     }
 }
 
