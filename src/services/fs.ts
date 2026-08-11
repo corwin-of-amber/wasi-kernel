@@ -31,6 +31,11 @@ class FsHookMaster {
                 Atomics.notify(new Int32Array(m.out), 0);
         }
     }
+
+    static current() {
+        let hook = Reflect.get(window, 'fs_hook');
+        return (hook instanceof FsHookMaster) ? hook : undefined;
+    }
 }
 
 

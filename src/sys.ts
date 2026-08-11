@@ -1,8 +1,7 @@
 import * as wasmer from "@wasmer/sdk";
-import { init, Runtime, WasmerInitInput } from "@wasmer/sdk";
+import { init, WasmerInitInput } from "@wasmer/sdk";
 
-import { ChildProcess } from './services/task-mgr';
-import { DirectoryVolumeAdapter } from "./services";
+import { ChildProcess, DirectoryVolumeAdapter, InitProcess } from './services';
 
 
 
@@ -20,7 +19,8 @@ class System {
         worker: string
     }
 
-    rt: Runtime
+    init: InitProcess
+    mem: WebAssembly.Memory
     vfs: DirectoryVolumeAdapter
     cwd: string
     env: {[varname: string]: string}
@@ -36,14 +36,17 @@ class System {
     }
 
     async startup(initOptions: WasmerInitInput = {}) {
-        await init({
+        let iin = {
             module: this.uris.wasmBindgen, 
             sdkUrl: this.uris.sdk,
             workerUrl: this.uris.worker,
             ...initOptions
-        });
+        };
 
-        this.rt = new Runtime();
+        let iout = await init(iin);
+        this.mem = iout.memory;
+
+        this.init = new InitProcess(iin, this.mem);
 
         // Default setup
         this.vfs = new DirectoryVolumeAdapter(new wasmer.Directory);
@@ -55,13 +58,12 @@ class System {
 
 
     async runWasix(bin: Uint8Array | ArrayBuffer | URL | string, runOpts: wasmer.RunOptions) {
-        if (!this.rt) await this.startup();
+        if (!this.init) await this.startup();
 
         bin = await this._bin(bin);
 
-        let instance = await wasmer.runWasix(bin, {
-            runtime: this.rt,   /** @todo one runtime per process for tty control? */
-            mount: {'/': this.vfs.root},
+        let instance = await this.init.spawn(bin, {
+            mount: this.vfs.mounts,
             cwd: this.cwd,
             env: this.env,
             ...runOpts, 
@@ -69,7 +71,7 @@ class System {
         return new ChildProcess(instance);
     }
 
-    async _bin(bin: string | URL | ArrayBuffer): Promise<ArrayBuffer> {
+    async _bin(bin: Uint8Array | ArrayBuffer | URL | string): Promise<Uint8Array | ArrayBuffer> {
         if (typeof bin === 'string')
             return await this.vfs.readFile(bin);
         else if (bin instanceof URL)

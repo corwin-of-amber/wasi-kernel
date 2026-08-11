@@ -11,7 +11,8 @@ class ChildProcess {
     constructor(instance: wasmer.Instance, runtime?: wasmer.Runtime) {
         this.instance = instance;
         this.runtime = runtime;
-        this.stdin = new Stdin(this.instance.stdin.getWriter());
+        if (this.instance.stdin)
+            this.stdin = new Stdin(this.instance.stdin.getWriter());
     }
 
     write(buf: string | Uint8Array) {

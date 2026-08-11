@@ -1,4 +1,5 @@
 export * from './fs'
 export * from './pty'
+export * from './init-process'
 export * from './package-mgr'
 export * from './task-mgr'
