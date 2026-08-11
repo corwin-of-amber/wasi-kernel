@@ -1,6 +1,7 @@
 #pragma once
 
-#ifdef __wasix__
+#if defined(__wasix__) && !defined(_WASIK_POLYFILL_DLFCN)
+// todo check version of wasix-libc
 #include_next <dlfcn.h>
 #else
 

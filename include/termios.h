@@ -47,7 +47,7 @@ int cfsetspeed(struct termios *, speed_t);
 #endif
 
 __attribute__((unused))
-int __wasik_tcgetattr (int fd, struct termios *t) {
+static int __wasik_tcgetattr (int fd, struct termios *t) {
     int res = tcgetattr(fd, t);
     /* wasix-libc does not implement those */
     t->c_cc[VINTR] = '\x03';
