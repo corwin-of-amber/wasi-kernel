@@ -27,9 +27,7 @@ __control_setjmp_set_return(jmp_buf env, setjmp_ret_val ret_val) {
 #define __control_setjmp_return(env, ret_val) \
     __control_setjmp_set_return(env, ret_val); return
 
-// @obsolete?
-//#define __control_setjmp_post(env, RTYPE) \
-//    if ((env)[0].ret) return (RTYPE)((env)[0].ret_val)
+[[noreturn]] void __control_longjmp(jmp_buf env, int val);
 
 
 /* This is a must when using __block variables */
