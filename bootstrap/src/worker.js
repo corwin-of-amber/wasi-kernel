@@ -1,56 +1,30 @@
-console.log(">> Worker is starting.", globalThis)
+console.log(`%c➤ Worker is starting %c[${globalThis.name}]`, 'color: blue', 'color: gray')
 
 Error.stackTraceLimit = 50;
 globalThis.onerror = console.error;
 globalThis.lastWasmError = undefined;
 
 let pendingMessages = [];
-let worker = undefined;
-let handleMessage = async data => {
-  if (worker) {
-    await worker.handle(data);
-  } else {
-    // We start off by buffering up all messages until we finish initializing.
-    pendingMessages.push(data);
-  }
+let worker = {
+  // Buffering up all messages until worker is initialized.
+  handleMessage(msg) { pendingMessages.push(msg); }
 };
 
 globalThis.onmessage = async ev => {
   if (ev.data.type == "init") {
-    const { memory, module, id, sdkUrl } = ev.data;
-    const { init, ThreadPoolWorker } = await import(sdkUrl);
-    await init({ module: module, sdkUrl: sdkUrl, memory: memory });
-
-    worker = new ThreadPoolWorker(id);
-
-    await import('../build/worker/init.js');
-
-    // Now that we're initialized, we need to handle any buffered messages
-    for (const msg of pendingMessages.splice(0, pendingMessages.length)) {
-      await worker.handle(msg);
-    }
-  } else {
-    // Handle the message like normal.
-    await handleMessage(ev.data);
+    const { module, id, sdkUrl, workerUrl, memory } = ev.data;
+    await import('../build/worker/worker.js');
+    worker = new WasikThreadPoolWorker(await import(sdkUrl));
+    await worker.init(id, { module, sdkUrl, workerUrl, memory });
+    // handle any buffered messages
+    worker.consume(pendingMessages);
+  }
+  else {
+    await worker.handleMessage(ev.data);
   }
 
   if (lastWasmError) {
-    if (lastWasmError instanceof WebAssembly.Exception) {
-      console.error('C++ exception:', proc.stdExceptionWhat(lastWasmError));
-    }
+    wworker.handleError(lastWasmError);
     lastWasmError = undefined;
   }
 };
-
-
-globalThis.fs_hook = {
-    initiated(fs) {
-        this.fs = fs;
-    },
-    dispatch: (op) => {
-        console.warn('== fs_hook ==', op);
-        let out = new SharedArrayBuffer(8, {maxByteLength: 8e6});
-        postMessage({op, out});
-        Atomics.wait(new Int32Array(out), 0, 0);
-    }
-}
