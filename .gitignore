@@ -9,7 +9,8 @@ dist
 .cache
 /build
 /lib
-/packages
+/packages/wasix*
+/packages/buildlog
 _npmlink
 /_legacy
 autogen

@@ -1,0 +1,6 @@
+[submodule "packages/wasmer"]
+	path = packages/wasmer
+	url = git@github.com:corwin-of-amber/wasmer
+[submodule "packages/wasmer-js"]
+	path = packages/wasmer-js
+	url = git@github.com:corwin-of-amber/wasmer-js
