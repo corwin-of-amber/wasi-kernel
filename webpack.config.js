@@ -9,12 +9,13 @@ const base = (argv) => ({
     stats: {
       hash: false, version: false, modules: false  // reduce verbosity
     },
+    module: {rules: [wasm, ts], parser: {javascript: {url: false}}},
     optimization: {
       minimizer: [
         new TerserPlugin({  /* this is a hack because wasmer-js checks the class name */
           terserOptions: { keep_fnames: /^MemFS$/ }
-        })  
-      ]
+        })
+      ],
     },
   });
 const ts = {
@@ -26,21 +27,21 @@ const ts = {
 };
 const wasm = {
   test: /\.wasm$/,
-  type: 'asset/resource'
+  type: 'asset/resource',
+  generator: {filename: "[name][ext]"}
 };
 const modules = (modnames) =>
-  Object.fromEntries(modnames.map(m => [m, `module ${m}`]));
+  Object.fromEntries(modnames.map(m => [m, `commonjs ${m}`]));
 
 module.exports = (env, argv) => [{
   name: 'worker',
-  entry: './src/kernel/worker.ts',
+  entry: './src/worker.webpack.js',
   target: 'webworker',
   output: {
     filename: 'worker.js',
     path: `${__dirname}/dist`
   },
   ...base(argv),
-  module: {rules: [ts, wasm]},
   resolve: {
     extensions: [ '.ts', '.js' ],
     fallback: {
@@ -61,37 +62,50 @@ module.exports = (env, argv) => [{
 },
 {
   name: 'esm',
-  entry: './src/kernel/index.ts',
+  entry: {
+    index: './src/index.ts',
+    services: './src/services/index.ts'
+  },
   ...base(argv),
   experiments: {
     outputModule: true
   },
   output: {
-    filename: 'index.js',
-    path: `${__dirname}/lib/kernel`,
-    library: {type: 'module'}
+    filename: '[name].mjs',
+    path: `${__dirname}/dist/`,
+    library: {type: 'module'},
+    chunkFormat: 'module'
   },
-  module: {rules: [ts, wasm]},
   resolve: {
     extensions: [ '.ts', '.js' ],
   },
   externalsType: 'module',
   externals: {
-    ...modules(['fs', 'path', 'worker_threads']),
-    '@wasmer/wasi/lib': 'module @wasmer/wasi'
+    ...modules(['fs', 'path', 'worker_threads', 'constants']),
+    '@wasmer/sdk': '@wasmer/sdk'
+  },
+  plugins: [
+    new webpack.ProvidePlugin({Buffer: ['buffer', 'Buffer'],
+                               process: 'process/browser' }),
+    //new BundleAnalyzerPlugin()
+  ],
+  optimization: {
+    splitChunks: {
+      chunks: 'all', minSize: 0,
+      name: 'shared.chunk',
+    },
   }
 },
 {
   name: 'cjs',
   target: 'node',
-  entry: './src/kernel/index.ts',
+  entry: './src/index.ts',
   ...base(argv),
   output: {
-    filename: 'index.cjs.js',
+    filename: 'index.cjs',
     path: `${__dirname}/lib/kernel`,
     library: {type: 'commonjs'}
   },
-  module: {rules: [ts, wasm]},
   resolve: {
     extensions: [ '.ts', '.js' ],
   },

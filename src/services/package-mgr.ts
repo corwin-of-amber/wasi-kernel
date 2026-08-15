@@ -237,7 +237,7 @@ class Resource {
     /** fast-path when fs is available */
     async file() {
         if (this.uri.startsWith('file://')) {
-            const fs = await import('fs').catch<null>(() => null);
+            const fs = await import(/* webpackIgnore: true */ 'fs').catch<null>(() => null);
             if (fs?.promises?.readFile)
                 return fs.promises.readFile(new URL(this.uri).pathname);
         }

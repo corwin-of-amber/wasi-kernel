@@ -8,7 +8,7 @@ import { ChildProcess, DirectoryVolumeAdapter, InitProcess } from './services';
 const wasmBindgenUrl = 'node_modules/@wasmer/sdk/dist/wasmer_js_bg.wasm';
 const sdkUrl = 'node_modules/@wasmer/sdk/dist/index.mjs';
 //const workerUrl = '/node_modules/@wasmer/sdk/dist/worker.mjs';
-const workerUrl = "bootstrap/src/worker.js"
+const workerUrl = "dist/worker.mjs"
 
 
 class System {

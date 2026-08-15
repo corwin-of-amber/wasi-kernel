@@ -8,13 +8,21 @@
     "wasi-kit": "scripts/kit.js"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./services": "./src/services/index.ts"
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./lib/index.d.ts"
+    },
+    "./services": {
+      "import": "./dist/services/index.mjs",
+      "types": "./lib/services/index.d.ts"
+    },
+    "./src": "./src/index.ts",
+    "./src/services": "./src/services/index.ts"
   },
   "side-effects": false,
   "scripts": {
     "autogen": "node src/core/bits/autogen.js",
-    "build": "webpack --mode production && tsc --emitDeclarationOnly",
+    "build": "npx tsup",
     "dist": "rm -rf dist lib && npm run build && npm pack"
   },
   "files": [
@@ -36,6 +44,7 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
+    "@microsoft/api-extractor": "^7.58.12",
     "@types/concat-stream": "^2.0.0",
     "@types/node": "^26.2.0",
     "@types/tar-stream": "^2.2.2",
@@ -45,6 +54,7 @@
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "ts-loader": "^9.4.1",
+    "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "wabt": "^1.0.23",
     "webpack": "^5.75.0",

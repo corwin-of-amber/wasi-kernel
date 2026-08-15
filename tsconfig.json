@@ -8,7 +8,8 @@
     "declaration": true,
     "outDir": "lib",
     "rootDir": "src",
-    "strict": false
+    "strict": false,
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src"],
   "exclude": ["src/extra"]
