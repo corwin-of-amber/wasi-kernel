@@ -3,12 +3,11 @@
     "target": "es2020",
     "module": "esnext",
     "lib": ["es2022", "webworker", "dom"],
-    "moduleResolution": "nodenext",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
-    "downlevelIteration": true,
-    "declaration": true,
     "outDir": "lib",
-    "rootDir": "../.."
+    "rootDir": "../..",
+    "strict": false
   },
   "include": ["**/*.ts"]
 }

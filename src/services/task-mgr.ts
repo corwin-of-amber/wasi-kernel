@@ -29,6 +29,11 @@ class ChildProcess {
     readRaw() {
         return readCollate([this.instance.stdout, this.instance.stderr]);
     }
+
+    async pipeInto(out: {write: (buf: Uint8Array) => void}) {
+        for await (let chunk of this.readRaw())
+            out.write(chunk.value);
+    }
 }
 
 

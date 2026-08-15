@@ -1,0 +1,10 @@
+{
+    "wasix": false,
+    "*": {
+        "native": false
+    },
+    "busy.wasm": {
+        "output": "busy.wasm",
+        "args": ["-Wl,--allow-undefined"]
+    }
+}
