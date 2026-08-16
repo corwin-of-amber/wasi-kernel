@@ -31,12 +31,13 @@ npm run build
 
 The build uses [tsup](https://tsup.egoist.dev), a frugal bundler for TypeScript based on esbuild. It is included in the package's `devDependencies`.
 
+From the project root:
 ```sh
 npm i 
 npm run build
 ```
 
-The `qa/test-ui` folder contains a small program to try out (`busy.c`), and a small UI application for running them. It is built using [Webpack](https://webpack.js.org).
+The `qa/test-ui` folder contains a small program to try out (`busy.c`), and a small UI application for running them. It is built using [Webpack](https://webpack.js.org) (also included in `devDependencies`). Use the same `npm i && npm run build` in the subdirectory, serve it over HTTP, and open `index.html` in a browser.
 
 ## Use
 
