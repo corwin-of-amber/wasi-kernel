@@ -110,9 +110,9 @@ class PackageManager extends EventEmitter {
             return this.installTar(rootdir, content, progress);
     }
 
-    async install(bundle: ResourceBundle, verbose = true) {
+    async install(bundle: ResourceBundle | Resource, verbose = true) {
         let start = +new Date;
-        for (let kv of Object.entries(bundle)) {
+        for (let kv of Object.entries(this.asBundle(bundle))) {
             let [filename, content] = kv,
                 uri = (content instanceof Resource) ? content.uri : null;
 
@@ -154,14 +154,17 @@ class PackageManager extends EventEmitter {
 
     async subinstall(dir: string, bundle: Resource | ResourceBundle) {
         if (this.volume instanceof DirectoryVolumeAdapter) {
-            let bundle_ = Array.isArray(bundle) || bundle instanceof Resource ?
-                {"/": bundle} : bundle;
             await this.volume.mount(dir,
                 new DirectoryVolumeAdapter({readonly: true}).withHook(
-                    v => this.subpm(v, {dir}).install(bundle_)));
+                    v => this.subpm(v, {dir}).install(bundle)));
         }
         else
             console.warn(`subinstall skipped for '${dir}' (not a Wasmer volume)`);
+    }
+
+    asBundle(bundle: ResourceBundle | Resource) {
+        return Array.isArray(bundle) || bundle instanceof Resource ?
+            {"/": bundle} : bundle;
     }
 
     /**

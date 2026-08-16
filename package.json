@@ -9,12 +9,14 @@
   },
   "exports": {
     ".": {
+      "types": "./lib/index.d.ts",
       "import": "./dist/index.mjs",
-      "types": "./lib/index.d.ts"
+      "require": "./dist/index.js"
     },
     "./services": {
+      "types": "./lib/services/index.d.ts",
       "import": "./dist/services/index.mjs",
-      "types": "./lib/services/index.d.ts"
+      "require": "./dist/services/index.js"
     },
     "./src": "./src/index.ts",
     "./src/services": "./src/services/index.ts"
@@ -22,7 +24,7 @@
   "side-effects": false,
   "scripts": {
     "autogen": "node src/core/bits/autogen.js",
-    "build": "npx tsup",
+    "build": "npm run autogen && tsup",
     "dist": "rm -rf dist lib && npm run build && npm pack"
   },
   "files": [

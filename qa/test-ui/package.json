@@ -2,6 +2,9 @@
     "name": "wasi-kernel-test-ui",
     "version": "0.0.0",
     "main": "index.html",
+    "script": {
+        "build": "webpack"
+    },
     "dependencies": {
         "concat-stream": "^2.0.0",
         "tar-stream": "^2.2.0",

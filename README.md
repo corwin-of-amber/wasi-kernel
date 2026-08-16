@@ -6,28 +6,37 @@ The current version is compatible with [wasi-sdk](https://github.com/WebAssembly
 
 ## Build
 
-To startup the project, you first need to do:
-```sh
+The core functionality is provided by [wasmer-js](https://github.com/corwin-of-amber/wasmer-js), which is included in the submodules `packages/wasmer` and `packages/wasmer-js`.
+The first step is therefore to build these dependencies.
+
+### Wasmer-JS
+
+ * Install [rustup](https://rustup.rs).
+ * Install wasm-pack.
+```
+cargo install wasm-pack
+```
+ * Install wasm-opt (part of Binaryen).
+```
+npm i -g binaryen
+```
+ * Build with npm.
+```
+cd packages/wasmer-js
 npm i
-```
-
-The build uses [Kremlin](https://github.com/corwin-of-amber/nwjs-kremlin). It is a home-brewed bundler,
-and I will probably have time to describe its workings better later on.
-It is not included as a project dependency by default; it is probably better to have it installed globally
-for your user.
-```sh
-npm i -g nwjs-kremlin
-```
-
-(TODO: the version currently on npmjs.org is probably too old.)
-
-To build Node.js modules and the Web worker:
-```sh
 npm run build
 ```
 
-The `bootstrap` folder contains a few small programs to try out, and a small UI application
-for running them.
+### Wasi Kernel (library bundle & worker)
+
+The build uses [tsup](https://tsup.egoist.dev), a frugal bundler for TypeScript based on esbuild. It is included in the package's `devDependencies`.
+
+```sh
+npm i 
+npm run build
+```
+
+The `qa/test-ui` folder contains a small program to try out (`busy.c`), and a small UI application for running them. It is built using [Webpack](https://webpack.js.org).
 
 ## Use
 

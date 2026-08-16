@@ -5,10 +5,11 @@ import { ChildProcess, DirectoryVolumeAdapter, InitProcess } from './services';
 
 
 
-const wasmBindgenUrl = 'node_modules/@wasmer/sdk/dist/wasmer_js_bg.wasm';
-const sdkUrl = 'node_modules/@wasmer/sdk/dist/index.mjs';
-//const workerUrl = '/node_modules/@wasmer/sdk/dist/worker.mjs';
-const workerUrl = "dist/worker.mjs"
+const DEFAULT_URIS = {
+    wasmBindgen: 'node_modules/@wasmer/sdk/dist/wasmer_js_bg.wasm',
+    sdk: 'node_modules/@wasmer/sdk/dist/index.mjs',
+    worker: 'dist/worker.mjs'
+};
 
 
 class System {
@@ -26,12 +27,8 @@ class System {
     env: {[varname: string]: string}
 
     constructor(uris: string | URL | System['uris']) {
-        if (typeof uris === 'string') uris = this._url(uris);
-        if (uris instanceof URL) uris = {
-            wasmBindgen: new URL(wasmBindgenUrl, uris).href,
-            sdk: new URL(sdkUrl, uris).href,
-            worker: new URL(workerUrl, uris).href
-        }
+        if (typeof uris === 'string' || uris instanceof URL)
+            uris = this.defaultURIs(uris);
         this.uris = uris;
     }
 
@@ -69,6 +66,19 @@ class System {
             ...runOpts, 
         });
         return new ChildProcess(instance);
+    }
+
+    /**
+     * Create a configuration using the default layout relative to a given
+     * base URI.
+     */
+    defaultURIs(baseURI: string | URL) {
+        let b = this._url(baseURI), d = DEFAULT_URIS;
+        return {
+            wasmBindgen: new URL(d.wasmBindgen, b).href,
+            sdk: new URL(d.sdk, b).href,
+            worker: new URL(d.worker, b).href
+        };
     }
 
     async _bin(bin: Uint8Array | ArrayBuffer | URL | string): Promise<Uint8Array | ArrayBuffer> {
