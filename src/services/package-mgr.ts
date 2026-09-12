@@ -301,6 +301,23 @@ class DirectoryVolumeAdapter implements Volume {
         return (await this.root.readDir(filename)).map(e => e.name);
     }
 
+    async stat(filename: string) {
+        /** @todo export stat from Rust type `Directory` */
+        try {
+            await this.root.readDir(filename);
+            return {isDirectory: () => true, isFile: () => false};
+        }
+        catch {
+            try {
+                await this.root.readFile(filename);
+                return {isDirectory: () => false, isFile: () => true};
+            }
+            catch (e) {
+                throw new Error(`not found: '${filename}'`, {cause: e});
+            }
+        }
+    }
+
     symlink(target: string, source: string): Promise<void> {
         this.root.createSymlink(target, source);
         return Promise.resolve();
