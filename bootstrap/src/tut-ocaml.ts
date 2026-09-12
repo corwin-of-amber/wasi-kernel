@@ -1,10 +1,10 @@
 import fs from 'fs';
 import * as wasmer from "@wasmer/sdk";
-import { init, Runtime, Wasmer } from "@wasmer/sdk";
+import { init, Runtime } from "@wasmer/sdk";
 
 import { PackageManager, Resource, DirectoryVolumeAdapter } from '../../src/services/package-mgr';
 
-import { FsHookMaster } from '../../src/services/fs.ts';
+import { System } from '../../src/sys.ts';
 import { ChildProcess } from '../../src/services/task-mgr.ts';
 
 import { MiniTerm } from './miniterm.ts';
@@ -21,9 +21,6 @@ async function main() {
     await init({module: wasmBindgenUrl, log: "trace"});
     wasmer.setSDKUrl(sdkUrl);
     wasmer.setWorkerUrl(workerUrl);
-    
-    let rt = new Runtime();
-    Object.assign(window, {rt});
 
     var term = new MiniTerm(document.querySelector('#term'));
 
@@ -77,33 +74,23 @@ async function main() {
 
     await pm.installArchive('/usr/lib/rocq-runtime', rcsfile(`${JSCOQ_WORKDIR}/coq-pkgs/init.coq-pkg`, 'application/zip'));
 
-    let fs_hook = new FsHookMaster();
-
-    /*
     let ocamlLazy = true;
-    if (ocamlLazy) {
-        let vfs_ocaml = new DirectoryVolumeAdapter(new wasmer.Directory());
-        fs_hook.with(vfs_ocaml.lazyInstall({
-            '/': rcsfile(`${OCAML_ROOT}/base.tar`)
-        }));
-
-        await vfs.mkdir('/usr/local/lib', {recursive: true});
-        vfs.root.mountDir('/usr/local/lib/ocaml', vfs_ocaml.root);
-    }
-    else*/
+    if (ocamlLazy)
+        await pm.subinstall("/usr/local/lib/ocaml", rcsfile(`${OCAML_ROOT}/base.tar`));
+    else
         await pm.installArchive('/usr/local/lib/ocaml', rcsfile(`${OCAML_ROOT}/base.tar`));
 
     await vfs.symlink('/usr/local/lib/ocaml/ocaml', '/usr/bin/ocaml');
 
-    Object.assign(window, {vfs, fs_hook});
+    Object.assign(window, {vfs});
 
 
     const RUN =
-        //['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
+        ['ocamlrun', '/usr/local/lib/ocaml/ocaml'];
         //['ocamlrun', '/usr/lib/rocqworker.byte', '--kind=repl', '-boot', '-R', '/usr/lib/rocq-runtime', ''];
         //['sh'];
         //['busybox', 'ls'];
-        ['busybox', 'less', 'a.ml']
+        //['busybox', 'less', 'a.ml']
         //['jump']  ['subproc']   ['threads']   ['files']
 
     const WASMS = {
@@ -116,13 +103,13 @@ async function main() {
         runOpts: {
             program: RUN[0],
             args: RUN.slice(1),
-            mount: {'/': vfs.root},
+            mount: vfs.mounts,
             cwd: '/home',
             env: {'OCAMLFIND_CONF': '/usr/lib/findlib.conf', 'HOME': '/home'}
         }
     };
 
-    let bin = (fs.readFileSync(prog.wasmFn)),
+    let bin = fs.readFileSync(prog.wasmFn) as Uint8Array<ArrayBuffer>,
         exe = await WebAssembly.compile(bin);
 
     //bin = fs.readFileSync('progs/ocaml/sane.exe')
@@ -130,6 +117,7 @@ async function main() {
     Object.assign(window, {bin, exe});
 
     async function runBare() {
+        let rt = new Runtime();
         let instance = await rt.exec_bare(bin, prog.runOpts);
         let p = new ChildProcess(instance);
         Object.assign(window, {p, instance});
@@ -142,7 +130,7 @@ async function main() {
     async function runWasix() {
         let instance = await wasmer.runWasix(bin, {
             ...prog.runOpts, 
-            runtime: rt
+            //runtime: rt
         });
         let p = new ChildProcess(instance);
 
@@ -153,7 +141,19 @@ async function main() {
         }
     }
 
-    runWasix();
+    async function runWasik() {
+        let wasik = new System({sdk: sdkUrl, worker: workerUrl, wasmBindgen: wasmBindgenUrl});
+        wasik.vfs = vfs;
+        let p = await wasik.runWasix(bin, {...prog.runOpts, stdin: {}});
+
+        Object.assign(window, {wasik, p});
+
+        for await (let chunk of p.read()) {
+            term.write(chunk);
+        }
+    }
+
+    runWasik();
 }
 
 export default main;

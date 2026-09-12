@@ -28,8 +28,12 @@
 #define TIOCOUTQ	0x5411
 #define TIOCSTI		0x5412
 */
+#ifndef TIOCGWINSZ
 #define TIOCGWINSZ	0x5413
+#endif
+#ifndef TIOCSWINSZ
 #define TIOCSWINSZ	0x5414
+#endif
 /*
 #define TIOCMGET	0x5415
 #define TIOCMBIS	0x5416

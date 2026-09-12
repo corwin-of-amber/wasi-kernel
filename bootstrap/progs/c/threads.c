@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 void *thread(void *arg) {
   char *ret;
@@ -17,6 +18,9 @@ void *thread(void *arg) {
   FILE *f = fopen("a.lean", "r");
   printf("opened %p\n", f);
   strcpy(ret, "This is a test");
+  int fd = open("thread-out", O_CREAT | O_WRONLY);
+  printf("opened 'thread-out' (write) %d\n", fd);
+  close(fd);
   pthread_exit(ret);
 }
 
@@ -25,6 +29,9 @@ int main() {
   void *ret;
 
   printf("[threads] main() entered\n");
+
+  int fd = open("main-out", O_CREAT | O_WRONLY);
+  printf("opened 'main-out' (write) %d\n", fd);
 
   if (pthread_create(&thid, NULL, thread, "thread 1") != 0) {
     perror("pthread_create() error");

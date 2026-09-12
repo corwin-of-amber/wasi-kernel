@@ -32,6 +32,9 @@
     "stdin": {
         "output": "stdin.wasm"
     },
+    "tty": {
+        "output": "tty.wasm"
+    },
     "dl-simple": {
         "args": ["-fwasm-exceptions", "--target=wasm32-wasi",
                  "-Wl,--allow-multiple-definition", "-Wl,--allow-undefined",
