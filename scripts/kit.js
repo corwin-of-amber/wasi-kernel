@@ -302,15 +302,33 @@ class Compile extends Phase {
             {fn: cInput.replace(/[.]c$/, '.wo'), type: 'obj'};
     }
 
-    getIncludeFlags() {
+    /**
+     * This is for when using wasix-libc, whose target may not match
+     * the default used by the SDK's clang toolchain.
+     * @returns `--target=...` flags if needed.
+     */
+    getTargetFlags(flags, sysroot) {
+        try {
+            if (!flags['--target']) {
+                let dirs = fs.readdirSync(path.join(sysroot, 'lib'),
+                    {encoding: 'utf-8'});
+                if (dirs.length === 1 && dirs[0].startsWith('wasm'))
+                    return [`--target=${dirs[0]}`, '-Wno-deprecated'];
+            }
+        }
+        catch { }
+        return [];
+    }
+
+    getIncludeFlags(flags = {}) {
         var sysroot = this.locateSysroot(this.isWasix() ? WASIX_LIBC : `${WASI_SDK}/share`),
             wasiInc = this.locateIncludes(), wasiPreconf = this.locatePreconf(),
-            flags = [`--sysroot=${sysroot}`,
-                     `-I${wasiInc}`, `-I${wasiInc}/c++`,
-                     '-include', `${wasiInc}/etc.h`];
+            cflags = [`--sysroot=${sysroot}`, ...this.getTargetFlags(flags, sysroot),
+                      `-I${wasiInc}`, `-I${wasiInc}/c++`,
+                      '-include', `${wasiInc}/etc.h`];
 
         if (this.isWasix())
-            flags.push('-D__wasix__', '-matomics', '-pthread');
+            cflags.push('-D__wasix__',  ...flags['-r'] ? [] : ['-matomics', '-pthread']);
 
         /*
         flags = [`--sysroot=/Users/corwin/var/workspace/wasi-kernel/wasi-kernel-2/packages/wasix-libc/sysroot`,
@@ -328,12 +346,12 @@ class Compile extends Phase {
         ]; */
 
         if (wasiPreconf) {
-            flags.unshift(`-I${wasiPreconf}`);
+            cflags.unshift(`-I${wasiPreconf}`);
             let prelude = path.join(wasiPreconf, '_prelude.h')
             if (fs.existsSync(prelude))
-                flags.unshift('-include', prelude);
+                cflags.unshift('-include', prelude);
         }
-        return flags;
+        return cflags;
     }
 
     getLinkFlags(flags, config=undefined) {
@@ -370,7 +388,7 @@ class Compile extends Phase {
 
         // Add WASI directories and flags
         if (!flags['-shared'])  /* wasix-libc seems to conflict with `-shared`. this might become an issue later. */
-            patched.unshift(...this.getIncludeFlags());
+            patched.unshift(...this.getIncludeFlags(flags));
         if (!flags['-c'])
             patched.unshift(...this.getLinkFlags(flags, wasmOut.config));
 
