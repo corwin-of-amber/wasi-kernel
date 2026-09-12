@@ -1,6 +1,6 @@
-console.log(`%c➤ Worker is starting %c[${globalThis.name}]`, 'color: blue', 'color: gray')
-
 import './worker.ts';
+
+console.log(`%c➤ Worker is starting %c[${globalThis.name}]`, 'color: blue', 'color: gray')
 
 Error.stackTraceLimit = 50;
 globalThis.onerror = console.error;
@@ -15,11 +15,11 @@ let worker = {
 globalThis.onmessage = async ev => {
   if (ev.data.type == "init") {
     const { module, id, sdkUrl, workerUrl, memory } = ev.data;
-    //await import('./worker.js');
-    worker = new WasikThreadPoolWorker(await import(/* webpackIgnore: true*/ sdkUrl));
-    await worker.init(id, { module, sdkUrl, workerUrl, memory });
+    let w = new WasikThreadPoolWorker(await import(/* webpackIgnore: true*/ sdkUrl));
+    await w.init(id, { module, sdkUrl, workerUrl, memory });
     // handle any buffered messages
-    worker.consume(pendingMessages);
+    w.consume(pendingMessages);
+    worker = w;
   }
   else {
     await worker.handleMessage(ev.data);

@@ -14,10 +14,11 @@ globalThis.onmessage = async ev => {
   if (ev.data.type == "init") {
     const { module, id, sdkUrl, workerUrl, memory } = ev.data;
     await import('../build/worker/worker.js');
-    worker = new WasikThreadPoolWorker(await import(sdkUrl));
-    await worker.init(id, { module, sdkUrl, workerUrl, memory });
+    let w = new WasikThreadPoolWorker(await import(sdkUrl));
+    await w.init(id, { module, sdkUrl, workerUrl, memory });
     // handle any buffered messages
-    worker.consume(pendingMessages);
+    w.consume(pendingMessages);
+    worker = w;
   }
   else {
     await worker.handleMessage(ev.data);
