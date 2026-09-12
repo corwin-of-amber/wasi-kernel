@@ -46,7 +46,7 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
-    "@microsoft/api-extractor": "^7.58.12",
+    "@microsoft/api-extractor": "^7.59.1",
     "@types/concat-stream": "^2.0.0",
     "@types/node": "^26.2.0",
     "@types/tar-stream": "^2.2.2",
