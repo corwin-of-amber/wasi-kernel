@@ -21,7 +21,7 @@ class FsHookMaster {
     }
 
     async intercept(m: {op: number, out: SharedArrayBuffer}) {
-        console.log('==  fs hook intercept ==', m);
+        console.log(`%c[fs hook] %cintercept (#${m.op})`, 'color: #3a3', 'color: #888');
         if (m.op !== undefined) {
             let op = this.actions.get(m.op);
             this.actions.delete(m.op);  // each op is single-shot

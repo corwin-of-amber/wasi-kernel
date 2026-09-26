@@ -28,17 +28,18 @@ namespace PackageManager {
 
 import Volume = PackageManager.Volume;
 import { FsHookMaster } from './fs';
+import { Tarball } from '../infra/tarball';
 
 
 class PackageManager extends EventEmitter {
 
     volume: Volume
-    opts: {fastInflate: boolean}
+    opts: {fastInflate: boolean, offload: boolean}
 
     constructor(volume: Volume) {
         super();
         this.volume = volume;
-        this.opts = {fastInflate: true};
+        this.opts = {fastInflate: true, offload: true};
     }
 
     async installFile(filename: string, content: string | Uint8Array | Resource) {
@@ -99,6 +100,14 @@ class PackageManager extends EventEmitter {
         });
     }
 
+    async installTarOffload(content: Resource | Blob, progress: (p: DownloadProgress) => void = () => {}) {
+        let payload = (content instanceof Resource) ? await content.blob(progress) : content,
+            tar = await new Tarball().fromBlob(payload);
+
+        (this.volume as DirectoryVolumeAdapter).root.offload(new Uint8Array(tar.blob), tar.entries());
+        this.opts.offload = false; // only one tarball may be offloaded
+    }
+
     async installArchive(rootdir: string, content: Resource | Resource[], progress: (p: DownloadProgress) => void = () => {}) {
         if (isMultiple(content)) {
             for (let overlay of content)
@@ -106,11 +115,13 @@ class PackageManager extends EventEmitter {
         }
         else if (content.uri.endsWith('.zip') || content.contentType === 'application/zip')
             return this.installZip(rootdir, content, progress);
+        else if (rootdir === '/' && this.opts.offload) 
+            return this.installTarOffload(content, progress);
         else
             return this.installTar(rootdir, content, progress);
     }
 
-    async install(bundle: ResourceBundle | Resource, verbose = true) {
+    async install(bundle: ResourceBundle | Resource | Resource[], verbose = true) {
         let start = +new Date;
         for (let kv of Object.entries(this.asBundle(bundle))) {
             let [filename, content] = kv,
@@ -152,7 +163,7 @@ class PackageManager extends EventEmitter {
         }
     }
 
-    async subinstall(dir: string, bundle: Resource | ResourceBundle) {
+    async subinstall(dir: string, bundle: Resource | Resource[] | ResourceBundle) {
         if (this.volume instanceof DirectoryVolumeAdapter) {
             await this.volume.mount(dir,
                 new DirectoryVolumeAdapter({readonly: true}).withHook(
@@ -162,8 +173,8 @@ class PackageManager extends EventEmitter {
             console.warn(`subinstall skipped for '${dir}' (not a Wasmer volume)`);
     }
 
-    asBundle(bundle: ResourceBundle | Resource) {
-        return Array.isArray(bundle) || bundle instanceof Resource ?
+    asBundle(bundle: ResourceBundle | Resource | Resource[]) {
+        return bundle instanceof Resource || isMultiple(bundle) ?
             {"/": bundle} : bundle;
     }
 
@@ -186,7 +197,7 @@ class Symlink extends SpecialEntry {
     constructor(public target: string) { super(); } 
 }
 class Lazily extends SpecialEntry {
-    constructor(public bundle: Resource | ResourceBundle) { super(); }
+    constructor(public bundle: Resource | Resource[] | ResourceBundle) { super(); }
 }
 
 function isMultiple(x: any): x is Resource[] {

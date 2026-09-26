@@ -95,8 +95,8 @@ globalThis.fs_hook = {
     initiated(fs) {
         this.fs = fs;
     },
-    dispatch: (op) => {
-        console.warn('== fs_hook ==', op);
+    dispatch: (op: number) => {
+        console.log(`%c[fs hook] %cdispatch (#${op})`, 'color: #3a6', 'color: #888');
         let out = new SharedArrayBuffer(8, {maxByteLength: 8e6});
         postMessage({op, out});
         Atomics.wait(new Int32Array(out), 0, 0);
