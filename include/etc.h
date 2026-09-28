@@ -55,6 +55,9 @@ extern int __wasi_tty_ioctl(int fd, int request, void *buf) __WASIK_EXTERNAL_NAM
 extern void __wasi_trace(const char *) __WASIK_EXTERNAL_NAME(trace);
 extern void __wasi_sorry(void *) __WASIK_EXTERNAL_NAME(sorry);
 
+extern int wasi_request_terminate(int exit_code)
+    __WASIK_EXTERNAL_NAME(request_terminate);
+
 void *malloc(size_t);
 
 /* stdlib.h */

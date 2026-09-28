@@ -18,7 +18,7 @@ class Proc {
             ['env', bind(this, ['__control_setjmp', '__control_setjmp_with_return',
                                 '__control_longjmp'])],
             ['wasik', bind(this.dyld, ['dlopen', 'dlsym', 'dlclose', 'dlerror_get']).concat(
-                      bind(this, ['login_get', 'progname_get', 'sorry']))]
+                      bind(this, ['login_get', 'progname_get', 'sorry', 'request_terminate']))]
         ];
     }
 
@@ -159,14 +159,19 @@ class Proc {
         for (var f: () => void; f = this.pending.pop(); f());
     }
 
+    request_terminate(code: i32) {
+        throw new Error(`termination requested (rc=${code})`);
+    }
+
     // -------------------
     // C++ exceptions part
     // -------------------
 
     getThrown(exn: WebAssembly.Exception) {
-        let exnTag = this.instance.exports.__cpp_exception;
+        let exnTag = this.instance.exports.__cpp_exception ??
+                     this._imports['env']?.['__cpp_exception'];
         if (exnTag === undefined)
-            throw new Error("exported tag `__cpp_exception` not found");
+            throw new Error("exported/imported tag `__cpp_exception` not found");
         // magic number 32 is the size of `_Unwind_Exception` (aligned to 16 bytes)
         return exn.getArg(exnTag, 0) + 32;
     }
