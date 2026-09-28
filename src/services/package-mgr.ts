@@ -42,8 +42,8 @@ class PackageManager extends EventEmitter {
         this.opts = {fastInflate: true, offload: true};
     }
 
-    async installFile(filename: string, content: string | Uint8Array | Resource) {
-        var c = content instanceof Resource ? await content.fetch() : content;
+    async installFile(filename: string, content: string | Uint8Array | Resource, progress?: (p: DownloadProgress) => void) {
+        var c = content instanceof Resource ? await content.fetch(progress) : content;
         return this._installFile(filename, c);
     }
 
@@ -79,7 +79,7 @@ class PackageManager extends EventEmitter {
                 await this.installSymlink(fullpath, header.linkname); break;
             case 'file':
                 stream.pipe(concat({encoding: "uint8array"}, async ui8a => {
-                    await this.installFile(fullpath, ui8a);//.then(resolve);
+                    await this.installFile(fullpath, ui8a);
                     next();
                 }));
                 return;  /* calls `next` on its own */
@@ -123,44 +123,64 @@ class PackageManager extends EventEmitter {
 
     async install(bundle: ResourceBundle | Resource | Resource[], verbose = true) {
         let start = +new Date;
+
         for (let kv of Object.entries(this.asBundle(bundle))) {
-            let [filename, content] = kv,
-                uri = (content instanceof Resource) ? content.uri : null;
-
-            this.emit('progress', {path: filename, uri, done: false});
-
-            if (!filename.endsWith('/')) {
-                // install regular file
-                if (isMultiple(content))
+            let [filename, content] = kv;
+            
+            if (isMultiple(content)) {
+                if (!filename.startsWith('/'))
                     throw new Error(`cannot install multiple resource into regular file '${filename}'`);
-                if (content instanceof SpecialEntry) {
-                    if (content instanceof Symlink)
-                        await this.installSymlink(filename, content.target);
-                    else
-                        console.warn(`unexpected entry for file '${filename}';`, content);
-                }
-                else
-                    await this.installFile(filename, content);
+
+                for (let overlay of content)
+                    await this.installEntry(filename, overlay);
             }
             else {
-                // install into a directory
-                if (content instanceof Resource || isMultiple(content))
-                    await this.installArchive(filename, content, (p: DownloadProgress) =>
-                        this.emit('progress', {path: filename, uri: uri ?? p.uri, download: p, done: false}));
-                else if (content instanceof SpecialEntry) {
-                    if (content instanceof Lazily)
-                        await this.subinstall(filename, content.bundle);
-                    else
-                        console.warn(`unexpected entry for directory '${filename}';`, content);
-                }
-                else
-                    await this.volume.mkdir(filename, {recursive: true});
+                await this.installEntry(filename, content);
             }
+
             if (verbose)
                 console.log(`%cwrote ${filename} (+${+new Date - start}ms)`, 'color: #99c');
-
-            this.emit('progress', {path: filename, uri, done: true});
         }
+    }
+
+    async installEntry(filename: string, content: Resource | SpecialEntry) {
+        let uri = content instanceof Resource ? content.uri : null,
+            download: DownloadProgress = undefined,
+            progress = (p: DownloadProgress) => {
+                if (p.downloaded > 1e6 || p.total > 1e6) {
+                    download = p;
+                    this.emit('progress', {path: filename, uri: uri ?? p.uri, download: p, done: false});
+                }
+            };
+
+        this.emit('progress', {path: filename, uri, done: false});
+
+        if (!filename.endsWith('/')) {
+            // install regular file
+            if (content instanceof SpecialEntry) {
+                if (content instanceof Symlink)
+                    await this.installSymlink(filename, content.target);
+                else
+                    console.warn(`unexpected entry for file '${filename}';`, content);
+            }
+            else
+                await this.installFile(filename, content, progress);
+        }
+        else {
+            // install into a directory
+            if (content instanceof Resource)
+                await this.installArchive(filename, content, progress);
+            else if (content instanceof SpecialEntry) {
+                if (content instanceof Lazily)
+                    await this.subinstall(filename, content.bundle);
+                else
+                    console.warn(`unexpected entry for directory '${filename}';`, content);
+            }
+            else
+                await this.volume.mkdir(filename, {recursive: true});
+        }
+
+        this.emit('progress', {path: filename, uri, download, done: true});
     }
 
     async subinstall(dir: string, bundle: Resource | Resource[] | ResourceBundle) {
@@ -213,11 +233,12 @@ class Resource {
         this.contentType = contentType;
     }
 
-    async arrayBuffer() {
+    async arrayBuffer(progress?: (p: DownloadProgress) => void ) {
         let fl = await this.file();
         if (fl) return fl;
 
-        return (await fetch(this.uri)).arrayBuffer()
+        return (progress ? await this.blob(progress) 
+                         : await fetch(this.uri)).arrayBuffer();
     }
 
     async blob(progress: (p: DownloadProgress) => void = () => {}) {
@@ -238,9 +259,9 @@ class Resource {
         return new Blob(chunks);
     }
 
-    async fetch() {
+    async fetch(progress?: (p: DownloadProgress) => void ) {
         return new Uint8Array(
-            await this.arrayBuffer()
+            await this.arrayBuffer(progress)
         );
     }
 
