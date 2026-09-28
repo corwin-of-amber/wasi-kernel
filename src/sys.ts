@@ -54,10 +54,13 @@ class System {
     }
 
 
-    async runWasix(bin: Uint8Array | ArrayBuffer | URL | string, runOpts: wasmer.RunOptions) {
+    async runWasix(bin: Uint8Array | ArrayBuffer | URL | string,
+                   runOpts: wasmer.RunOptions = {}) {
         if (!this.init) await this.startup();
 
         bin = await this._bin(bin);
+
+        runOpts.runtime ??= new wasmer.Runtime;
 
         let instance = await this.init.spawn(bin, {
             mount: this.vfs.mounts,
@@ -65,7 +68,7 @@ class System {
             env: this.env,
             ...runOpts, 
         });
-        return new ChildProcess(instance);
+        return new ChildProcess(instance, runOpts.runtime);
     }
 
     /**
