@@ -1,5 +1,5 @@
 import * as wasmer from "@wasmer/sdk";
-import { init, WasmerInitInput } from "@wasmer/sdk";
+import { init, WasmerInitInput, reboot } from "@wasmer/sdk";
 
 import { ChildProcess, DirectoryVolumeAdapter, InitProcess } from './services';
 
@@ -69,6 +69,10 @@ class System {
             ...runOpts, 
         });
         return new ChildProcess(instance, runOpts.runtime);
+    }
+
+    reboot() {
+        reboot();
     }
 
     /**

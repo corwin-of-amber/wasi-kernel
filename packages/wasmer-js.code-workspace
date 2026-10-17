@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "wasmer-js"
+		},
+		{
+			"path": "wasmer"
+		}
+	],
+	"settings": {}
+}

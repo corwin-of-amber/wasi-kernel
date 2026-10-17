@@ -5,11 +5,11 @@
 import { Proc, i32 } from './core/bits/proc';
 
 
-function initHook(imp: {env?: object, wasik?: object}, m: WebAssembly.Module) {
+function initHook(imp: WebAssembly.Imports, m: WebAssembly.Module) {
     imp.env ??= {};
-    imp.wasik ??= {};
     
     // Generate stubs for missing system functions
+    // (note: assumes that wasmer does not place its syscalls in `env`)
     for (let e of WebAssembly.Module.imports(m)) {
         if (e.module === 'env' && e.kind === 'function')
             imp.env[e.name] = () => { console.warn('[stub]', e); return 0; }
@@ -22,8 +22,8 @@ function initHook(imp: {env?: object, wasik?: object}, m: WebAssembly.Module) {
 
     // Polyfill stubs
     // - exception handling
-    imp.env['__cpp_exception'] = new WebAssembly.Tag({parameters: ['i32']});
-    imp.env['__c_longjmp'] = new WebAssembly.Tag({parameters: ['i32']});
+    for (let tag of ['__cpp_exception', '__c_longjmp'])
+        imp.env[tag] = new WebAssembly.Tag({parameters: ['i32']}) as any;
     imp.env['__cxa_allocate_exception'] = (sz: i32) => {
         console.warn('[stub] cxa_alloc', sz);
         return 20000;  /* @@ arbitrary address */
@@ -39,8 +39,7 @@ function initHook(imp: {env?: object, wasik?: object}, m: WebAssembly.Module) {
     }
     
     // Provide Proc instance services
-    for (let [ns, ext] of proc.imports())
-        for (let [k, v] of ext) imp[ns][k] = v;
+    proc.importsObj(imp);
 
     /** @todo this is for Rocq actually :) ^- */
     proc.dyld.extern = {js: {interrupt_pending: () => 0}};
