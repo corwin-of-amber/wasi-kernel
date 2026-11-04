@@ -17,7 +17,6 @@ class Proc {
         return [
             ['env', bind(this, ['__control_setjmp', '__control_setjmp_with_return',
                                 '__control_longjmp'])],
-            ['wasix_32v1', ['proc_exit', 'proc_exit2'].map(fn => [fn, this.request_terminate.bind(this)])],
             ['wasik', bind(this.dyld, ['dlopen', 'dlsym', 'dlclose', 'dlerror_get']).concat(
                       bind(this, ['login_get', 'progname_get', 'sorry', 'request_terminate']))]
         ];
