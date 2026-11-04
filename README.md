@@ -79,3 +79,30 @@ The `args` and `noargs` keys offer surgical intervention in the command line bef
 With `args`, additional arguments can be added. With `noargs`, they can be removed.
 
 TODO: other flags and options (`"*"`, presets)
+## Process-exit regression checks
+
+The SDK owns WASI/WASIX process lifetime and exit status. The kernel adds its
+`env` and `wasik` services without replacing the SDK's `proc_exit` handlers;
+`wasik.request_terminate` remains an explicit kernel abort hook.
+
+After installing the project dependencies, run the import-composition checks
+through the normal TypeScript build:
+
+```sh
+npm run test:imports
+```
+
+For guest-level checks, build the SDK and kernel first, then:
+
+```sh
+npm run build
+npm run test:browser:build
+(cd tests/fixtures && WASI_KIT=native=false wasi-kit clang process-exit.c -o process-exit)
+uv run --with playwright python tests/check-browser-process-exit.py
+```
+
+The last two steps need wasi-kit, a WASIX sysroot, and Chromium (the default
+executable is `/usr/bin/google-chrome`; override with `--chrome`). Use
+`--sdk-dir /path/to/wasmer-js/dist` to test a separate SDK build. The fixture
+calls both WASIX exit imports with codes 0 and 7, checks captured output, then
+runs another successful guest to verify recovery. The SDK is rebooted between the two API sequences. Unexpected page errors or guest timeouts fail the test.

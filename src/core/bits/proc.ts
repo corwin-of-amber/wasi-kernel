@@ -12,12 +12,13 @@ class Proc {
     _imports?: {[ns: string]: {[name: string]: any}}
     _funcTable: WebAssembly.Table = undefined
 
+    // The SDK owns WASI/WASIX process lifetime and exit status.
+    // Kernel imports extend the environment without replacing those handlers.
     imports(): [string, [string, any][]][] {
         let bind = (o: object, l: string[]) => l.map(method => [method, o[method].bind(o)] as [string, any]);
         return [
             ['env', bind(this, ['__control_setjmp', '__control_setjmp_with_return',
                                 '__control_longjmp'])],
-            ['wasix_32v1', ['proc_exit', 'proc_exit2'].map(fn => [fn, this.request_terminate.bind(this)])],
             ['wasik', bind(this.dyld, ['dlopen', 'dlsym', 'dlclose', 'dlerror_get']).concat(
                       bind(this, ['login_get', 'progname_get', 'sorry', 'request_terminate']))]
         ];
@@ -169,7 +170,7 @@ class Proc {
     }
 
     request_terminate(code: i32) {
-        /** @todo this is called when the instance invokes `proc_exit` */
+        // Explicit kernel termination; normal guest exits are handled by the SDK.
         /* When multiple threads are running, termination must be forced via an exception. */
         /* in a single-threaded program, however, it should be avoided if possible. */
         throw new Error(`termination requested (rc=${code})`);

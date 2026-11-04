@@ -16,3 +16,4 @@ _npmlink
 autogen
 **/build/kremlin
 **/build/worker
+.test-build/
