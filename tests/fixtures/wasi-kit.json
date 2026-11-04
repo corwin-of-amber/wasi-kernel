@@ -1,0 +1,8 @@
+{
+  "wasix": true,
+  "*": {"args": ["-fPIC", "-fwasm-exceptions", "-mllvm=-wasm-use-legacy-eh=false"]},
+  "process-exit": {
+    "output": "../../.test-build/process-exit.wasm",
+    "args": ["-Wl,-pie", "-Wl,--allow-undefined", "-fPIC"]
+  }
+}

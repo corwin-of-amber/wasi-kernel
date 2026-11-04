@@ -25,7 +25,10 @@
   "scripts": {
     "autogen": "node src/core/bits/autogen.js",
     "build": "npm run autogen && tsup",
-    "dist": "rm -rf dist lib && npm run build && npm pack"
+    "dist": "rm -rf dist lib && npm run build && npm pack",
+    "test:imports": "npm run test:build && node --test tests/proc-imports.test.cjs",
+    "test:browser:build": "npm run test:build",
+    "test:build": "npm run autogen && tsup --config tests/tsup.config.ts"
   },
   "files": [
     "dist",

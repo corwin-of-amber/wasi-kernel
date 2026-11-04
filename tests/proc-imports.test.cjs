@@ -1,25 +1,6 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
-const ts = require('typescript');
-
-// Import composition is independent of the dynamic loader and guest memory.
-const source = fs.readFileSync(path.join(__dirname, '../src/core/bits/proc.ts'), 'utf8');
-const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-});
-const context = { exports: {}, TextEncoder, TextDecoder, console,
-    require(name) {
-        assert.equal(name, './dyld');
-        return { DynamicLoader: class {
-            dlopen() {} dlsym() {} dlclose() {} dlerror_get() {}
-        } };
-    }
-};
-vm.runInNewContext(outputText, context);
-const { Proc } = context.exports;
+const { Proc } = require('../.test-build/proc.cjs');
 
 test('preserve SDK process-exit handlers when extending imports', () => {
     const proc_exit = () => {};
